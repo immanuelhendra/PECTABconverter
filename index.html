@@ -1,346 +1,377 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>PDF (Base64) → PECTAB (ATB/BTP)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>pdf2pectab — PDF → PECTAB (client‑side)</title>
   <style>
-    :root { --bg:#0b1020; --fg:#e7eeff; --muted:#67718a; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
-    h1 { margin: 0 0 8px; }
-    .grid { display: grid; gap: 16px; grid-template-columns: 1fr; max-width: 1200px; }
-    .row { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
-    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
-    .muted { color: #555; }
-    textarea, input, select, button { width: 100%; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    textarea { min-height: 140px; }
-    pre { background: var(--bg); color: var(--fg); padding: 12px; border-radius: 8px; overflow: auto; }
-    .small { font-size: 12px; }
-    .btn { cursor: pointer; border: 1px solid #111; border-radius: 8px; background: #111; color: #fff; padding: 10px 12px; }
-    .btn.secondary { background: #fff; color: #111; }
-    .flex { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .preview-wrap { display: grid; gap: 12px; grid-template-columns: 320px 1fr; align-items: start; }
-    canvas { max-width: 100%; border: 1px dashed #ddd; border-radius: 10px; background: #fafafa; }
-    label .hint { color: var(--muted); font-weight: normal; }
+    :root{--bg:#0b0e12;--panel:#121720;--ink:#e6eefc;--muted:#9fb1ca;--brand:#5ea1ff;--accent:#7cf;--warn:#ffd66b;--danger:#ff7a7a}
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:14px 18px;background:linear-gradient(180deg,#0f1420 0%,#0b0e12 100%);border-bottom:1px solid #1b2332}
+    header .title{font-weight:700;font-size:16px;letter-spacing:.3px}
+    header .badge{font-size:12px;color:var(--bg);background:var(--brand);padding:2px 8px;border-radius:999px}
+    main{display:grid;grid-template-columns:360px 1fr;gap:14px;padding:14px;height:calc(100% - 60px)}
+    aside,section{background:var(--panel);border:1px solid #1b2332;border-radius:14px;overflow:hidden}
+    aside{display:flex;flex-direction:column}
+    .pane-head{padding:12px 14px;border-bottom:1px solid #1b2332;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+    .pane-body{padding:12px;gap:12px;display:flex;flex-direction:column;overflow:auto}
+    label{display:block;margin-bottom:6px;color:var(--muted);font-size:12px}
+    input[type=file],select,button,.textlike{width:100%;padding:10px 12px;background:#0e131c;border:1px solid #243149;color:var(--ink);border-radius:10px}
+    button{cursor:pointer} button.primary{background:var(--brand);color:#08111f;border-color:#4e86d6;font-weight:700}
+    button.ghost{background:transparent;border-color:#243149}
+    button.warn{background:var(--warn);color:#1a1400;border-color:#c1a23f}
+    .row{display:flex;gap:10px}
+    .row>div{flex:1}
+    #canvasWrap{position:relative;height:100%;display:flex;flex-direction:column}
+    #pdfCanvas{flex:1;background:#0a0f18;border-bottom:1px solid #1b2332}
+    #overlay{position:absolute;inset:0;pointer-events:none}
+    .toolbar{display:flex;gap:8px;padding:8px;border-bottom:1px solid #1b2332;background:#0e141f}
+    .pill{padding:8px 10px;border:1px solid #2a3a55;border-radius:999px;background:#101826;cursor:pointer;color:var(--muted)}
+    .pill.active{background:#162235;color:var(--ink);border-color:#3a5786}
+    .item{padding:8px 10px;border:1px solid #26344c;border-radius:10px;display:flex;align-items:center;justify-content:space-between}
+    .item small{color:var(--muted)}
+    .list{display:flex;flex-direction:column;gap:8px}
+    .hint{color:var(--muted);font-size:12px}
+    .tag{font-size:11px;padding:2px 6px;border-radius:6px;background:#1b2a45;color:#b8d0ff;border:1px solid #2a3a55}
+    .grid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(to right, rgba(126,193,255,.06) 1px, transparent 1px),linear-gradient(to bottom, rgba(126,193,255,.06) 1px, transparent 1px);background-size:40px 40px;mix-blend:screen}
+    .bbox{position:absolute;border:1px dashed #7cf;outline:9999px solid rgba(124,255,255,.05);border-radius:4px}
+    .bbox .label{position:absolute;left:0;top:-18px;background:#162235;border:1px solid #2f4d79;color:#bfe9ff;font-size:11px;padding:1px 6px;border-radius:6px}
+    .danger{color:var(--danger)} .success{color:#7cffc2}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .hr{height:1px;background:#1b2332;margin:6px 0}
+    .footer{padding:8px 12px;border-top:1px solid #1b2332;display:flex;gap:8px;justify-content:flex-end}
   </style>
-  <!-- PDF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script>pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";</script>
-  <!-- ZXing (barcode) -->
-  <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.2"></script>
+  <!-- PDF.js (UMD build) -->
+  <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 </head>
 <body>
-  <h1>PDF (Base64) → PECTAB</h1>
-  <p class="muted small">Paste your <b>PDF Base64</b>. This parses text + tries to decode barcodes. Edit positions and export a generic PECTAB.</p>
-
-  <div class="grid">
-    <!-- INPUT -->
-    <div class="card">
-      <h3>1) Paste Base64 PDF</h3>
-      <textarea id="b64Input" placeholder="Paste Base64 (raw or data:application/pdf;base64,...)"></textarea>
-      <div class="kv">
+  <header>
+    <div class="title">pdf2pectab <span class="badge">alpha</span></div>
+    <div class="hint">All processing is client‑side. Share this page via GitHub Pages.</div>
+  </header>
+  <main>
+    <aside>
+      <div class="pane-head">Input & Settings</div>
+      <div class="pane-body">
         <div>
-          <label>Printer DPI <span class="hint">(typical ATB = 203)</span></label>
-          <input id="dpi" type="number" value="203" />
+          <label>Upload PDF (single page, correct physical size)</label>
+          <input id="file" type="file" accept="application/pdf" />
         </div>
-        <div>
-          <label>Max pages to scan <span class="hint">(for big PDFs)</span></label>
-          <input id="maxPages" type="number" value="5" />
-        </div>
-      </div>
-      <div class="flex">
-        <button id="parseBtn" class="btn">Parse PDF</button>
-        <button id="clearBtn" class="btn secondary">Clear</button>
-      </div>
-    </div>
-
-    <!-- PREVIEW + FIELDS -->
-    <div class="row">
-      <div class="card">
-        <h3>2) Page Preview & Barcode Scan</h3>
-        <div class="preview-wrap">
+        <div class="row">
           <div>
-            <canvas id="preview"></canvas>
-            <div class="flex" style="margin-top:8px">
-              <label>Page <input id="pageNum" type="number" value="1" style="width:80px" /></label>
-              <button id="renderBtn" class="btn secondary">Render Page</button>
-            </div>
+            <label>Printer DPI</label>
+            <select id="dpi">
+              <option value="203" selected>203</option>
+              <option value="300">300</option>
+            </select>
           </div>
           <div>
-            <label class="small muted">Detected Barcodes (data)</label>
-            <textarea id="barcodes" placeholder="Decoded barcode payloads (one per line)"></textarea>
-            <div class="kv">
-              <div><label>Barcode symbology</label>
-                <select id="barcodeSym">
-                  <option>PDF417</option><option>QR</option><option>DATAMATRIX</option><option>AZTEC</option>
-                </select>
-              </div>
-              <div><label>Module width (dots)</label><input id="barcodeMod" type="number" value="2" /></div>
-              <div><label>Barcode X (dots)</label><input id="barcodeX" type="number" value="20" /></div>
-              <div><label>Barcode Y (dots)</label><input id="barcodeY" type="number" value="200" /></div>
-            </div>
-            <p class="small muted">We can’t reliably get the barcode’s position from the image; set X/Y as needed.</p>
+            <label>Template ID</label>
+            <input id="templateId" class="textlike" value="BT01" />
           </div>
         </div>
-      </div>
-
-      <div class="card">
-        <h3>3) Extracted Text → Editable Fields</h3>
-        <label class="small muted">Text blocks (dots; edit freely). Each item: { x, y, size, font, text }</label>
-        <textarea id="textBlocks"></textarea>
-        <div class="flex">
-          <button id="autoLayoutBtn" class="btn secondary">Auto (merge lines)</button>
-          <span class="small muted">If words looked too granular, try “Auto”.</span>
+        <div>
+          <label>Dynamic field tagging</label>
+          <div class="hint">If your PDF has AcroForm fields, click “Parse Forms”. Otherwise, add regions on the canvas and tag them.</div>
+          <div class="row">
+            <button id="btnParseForms" class="ghost">Parse Forms</button>
+            <button id="btnClearBBoxes" class="ghost">Clear Tagged Regions</button>
+          </div>
+        </div>
+        <div>
+          <label>Elements (auto + manual)</label>
+          <div id="elemList" class="list"></div>
+        </div>
+        <div class="hr"></div>
+        <div>
+          <label>Export</label>
+          <div class="row">
+            <button id="btnExportPectab" class="primary">Export PECTAB</button>
+            <button id="btnExportManifest" class="ghost">Export Manifest JSON</button>
+          </div>
+          <div class="hint">Note: PECTAB dialects vary slightly by printer/firmware. Adjust the export mapping if needed.</div>
         </div>
       </div>
-    </div>
+    </aside>
 
-    <!-- PECTAB -->
-    <div class="card">
-      <h3>4) Generated PECTAB</h3>
-      <pre id="pectabOut"></pre>
-      <div class="flex">
-        <button id="genBtn" class="btn">Generate</button>
-        <button id="downloadBtn" class="btn secondary">Download .pectab</button>
+    <section id="canvasWrap">
+      <div class="pane-head" style="display:flex;align-items:center;gap:10px">
+        <div>PDF Preview & Tagging</div>
+        <div class="toolbar" style="margin-left:auto">
+          <div class="pill active" data-tool="pan">Pan</div>
+          <div class="pill" data-tool="text">Add Text</div>
+          <div class="pill" data-tool="barcode">Add Barcode</div>
+          <div class="pill" data-tool="box">Add Box/Line</div>
+          <div class="pill" data-tool="erase">Erase</div>
+        </div>
       </div>
-      <p class="small muted">Generic PECTAB-style output (PAGE/TEXT/BARCODE). Adjust keywords to your device’s dialect.</p>
-    </div>
-  </div>
+      <div style="position:relative;flex:1;min-height:320px">
+        <canvas id="pdfCanvas"></canvas>
+        <div id="overlay"></div>
+        <div class="grid" id="grid"></div>
+      </div>
+      <div class="footer">
+        <span id="pageMeta" class="hint"></span>
+        <div style="flex:1"></div>
+        <button id="btnFit" class="ghost">Fit width</button>
+        <button id="btn100" class="ghost">100%</button>
+      </div>
+    </section>
+  </main>
 
-  <script>
-    // ---------------- Utilities ----------------
-    const $ = s => document.querySelector(s);
+<script>
+  // --- PDF setup ---
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
-    function b64ToUint8Array(b64) {
-      const clean = b64.replace(/^data:application\\/pdf;base64,/, '').replace(/\\s+/g,'').replace(/-/g,'+').replace(/_/g,'/');
-      const str = atob(clean);
-      const bytes = new Uint8Array(str.length);
-      for (let i=0;i<str.length;i++) bytes[i] = str.charCodeAt(0);
-      return bytes;
+  // DOM refs
+  const fileEl = document.getElementById('file');
+  const dpiEl = document.getElementById('dpi');
+  const templateIdEl = document.getElementById('templateId');
+  const canvas = document.getElementById('pdfCanvas');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const elemList = document.getElementById('elemList');
+  const pageMeta = document.getElementById('pageMeta');
+
+  let pdf, page, viewport, scale=1, pdfBytes;
+  let pagePtsW = 0, pagePtsH = 0; // PDF points
+  let boxes = []; // user-tagged regions
+  let tool = 'pan';
+  let pan = {active:false, x:0,y:0, ox:0,oy:0};
+
+  // Tool switching UI
+  document.querySelectorAll('.pill').forEach(el=>{
+    el.addEventListener('click',()=>{
+      document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));
+      el.classList.add('active');
+      tool = el.dataset.tool;
+    });
+  });
+
+  // File upload
+  fileEl.addEventListener('change', async (e)=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    pdfBytes = await f.arrayBuffer();
+    pdf = await pdfjsLib.getDocument({data: pdfBytes}).promise;
+    page = await pdf.getPage(1);
+
+    // Get page size (in points) and viewport
+    const vp = page.getViewport({scale:1});
+    pagePtsW = vp.viewBox[2];
+    pagePtsH = vp.viewBox[3];
+
+    // Initial render: fit width
+    fitWidth();
+    await render();
+    boxes = [];
+    refreshElemList();
+  });
+
+  async function render(){
+    viewport = page.getViewport({scale});
+    canvas.width = Math.max(1, Math.floor(viewport.width));
+    canvas.height = Math.max(1, Math.floor(viewport.height));
+    overlay.style.width = canvas.width + 'px';
+    overlay.style.height = canvas.height + 'px';
+
+    const renderTask = page.render({canvasContext: ctx, viewport});
+    await renderTask.promise;
+    pageMeta.textContent = `Page: ${Math.round(pagePtsW)}×${Math.round(pagePtsH)} pt  |  Zoom: ${(scale*100).toFixed(0)}%`;
+  }
+
+  function fitWidth(){
+    const wrap = document.getElementById('canvasWrap');
+    const w = wrap.clientWidth - 20; // padding
+    const vp = page.getViewport({scale:1});
+    scale = w / vp.width;
+  }
+
+  document.getElementById('btnFit').onclick = async ()=>{fitWidth(); await render(); drawBoxes();};
+  document.getElementById('btn100').onclick = async ()=>{scale = 1; await render(); drawBoxes();};
+
+  // Pan & draw interactions
+  overlay.addEventListener('mousedown',(e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if(tool==='pan'){
+      pan = {active:true,x,y,ox:window.scrollX,oy:window.scrollY};
+      return;
+    }
+    if(tool==='erase'){
+      // Erase box under cursor
+      const i = boxes.findIndex(b=>x>=b.x && y>=b.y && x<=b.x+b.w && y<=b.y+b.h);
+      if(i>=0){ boxes.splice(i,1); drawBoxes(); refreshElemList(); }
+      return;
     }
 
-    function pointsToDots(vPoints, dpi) {
-      // 1 point = 1/72 inch; dots = (points/72) * dpi
-      return Math.round((vPoints / 72) * dpi);
+    // Start drawing new region
+    const b = {x,y,w:0,h:0,type:tool, name:"", opts:{}, id:crypto.randomUUID()};
+    boxes.push(b);
+    const move = (ev)=>{
+      b.w = (ev.clientX - rect.left) - x;
+      b.h = (ev.clientY - rect.top) - y;
+      drawBoxes();
+    };
+    const up = async()=>{
+      window.removeEventListener('mousemove',move);
+      window.removeEventListener('mouseup',up);
+      // Normalize w/h positive
+      if(b.w<0){ b.x+=b.w; b.w*=-1; }
+      if(b.h<0){ b.y+=b.h; b.h*=-1; }
+      drawBoxes();
+      await promptBoxMeta(b);
+      refreshElemList();
+    };
+    window.addEventListener('mousemove',move);
+    window.addEventListener('mouseup',up);
+  });
+
+  window.addEventListener('mousemove',(e)=>{
+    if(!pan.active) return;
+    window.scrollTo(pan.ox - (e.clientX - pan.x), pan.oy - (e.clientY - pan.y));
+  });
+  window.addEventListener('mouseup',()=> pan.active=false);
+
+  function drawBoxes(){
+    overlay.innerHTML = '';
+    boxes.forEach(b=>{
+      const el = document.createElement('div');
+      el.className = 'bbox';
+      el.style.left = `${b.x}px`; el.style.top = `${b.y}px`;
+      el.style.width = `${b.w}px`; el.style.height = `${b.h}px`;
+      const lab = document.createElement('div');
+      lab.className='label';
+      lab.textContent = `${b.type.toUpperCase()} ${b.name?('· '+b.name):''}`;
+      el.appendChild(lab);
+      overlay.appendChild(el);
+    });
+  }
+
+  async function promptBoxMeta(b){
+    const name = prompt(`Name for this ${b.type} region (e.g., FLIGHT, LPN, FROM_TO)`, b.name||'');
+    if(name!==null) b.name = name.trim();
+    if(b.type==='barcode'){
+      const sym = prompt('Barcode symbology (e.g., CODE128, QR, PDF417)', b.opts.symbology||'CODE128');
+      const mod = prompt('Module width in dots (e.g., 2)', b.opts.module||'2');
+      b.opts.symbology = (sym||'CODE128').toUpperCase();
+      b.opts.module = parseInt(mod||'2',10);
     }
+  }
 
-    function buildPectab({ pageDots, textBlocks, barcodes, sym="PDF417", module=2, bx=20, by=200 }) {
-      const lines = [];
-      lines.push("; ---- GENERIC PECTAB START ----");
-      lines.push(`PAGE WIDTH=${pageDots.width} HEIGHT=${pageDots.height}  ; units: dots`);
-      lines.push("");
+  function refreshElemList(){
+    elemList.innerHTML='';
+    if(!boxes.length){ elemList.innerHTML = '<div class="hint">No tagged regions yet. Use tools above to add Text / Barcode / Box.</div>'; return; }
+    boxes.forEach(b=>{
+      const item = document.createElement('div');
+      item.className='item';
+      const xywh = `${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}×${Math.round(b.h)}`;
+      item.innerHTML = `<div><div><strong>${b.name||'(unnamed)'}</strong> <span class="tag">${b.type}</span></div><small>${xywh} px @ current zoom</small></div><button class="ghost">Edit</button>`;
+      item.querySelector('button').onclick = async()=>{ await promptBoxMeta(b); drawBoxes(); refreshElemList(); };
+      elemList.appendChild(item);
+    });
+  }
 
-      (textBlocks || []).forEach((t) => {
-        const x = Math.max(0, Math.round(t.x || 0));
-        const y = Math.max(0, Math.round(t.y || 0));
-        const size = t.size || 10;
-        const font = t.font || "A";
-        const tx = (t.text || "").replace(/\\r?\\n/g, " ");
-        lines.push(`TEXT X=${x} Y=${y} FONT=${font} SIZE=${size} : ${tx}`);
-      });
+  // Parse AcroForm widgets into boxes
+  document.getElementById('btnParseForms').onclick = async()=>{
+    if(!page){ alert('Load a PDF first.'); return; }
+    const annots = await page.getAnnotations();
+    if(!annots.length){ alert('No annotations/forms found.'); return; }
 
-      lines.push("");
+    const vp = page.getViewport({scale});
+    annots.forEach(a=>{
+      if(!a.rect) return;
+      // a.rect = [x1, y1, x2, y2] in PDF points, origin bottom-left
+      const [x1,y1,x2,y2] = a.rect;
+      const wPts = x2-x1, hPts = y2-y1;
+      const xPx = (x1 / pagePtsW) * vp.width;
+      const yPx = vp.height - ((y1 + hPts) / pagePtsH) * vp.height; // flip Y
+      const wPx = (wPts / pagePtsW) * vp.width;
+      const hPx = (hPts / pagePtsH) * vp.height;
+      boxes.push({x:xPx,y:yPx,w:wPx,h:hPx,type:'text',name:a.fieldName||a.title||'FIELD',opts:{}, id:crypto.randomUUID()});
+    });
+    drawBoxes();
+    refreshElemList();
+  };
 
-      if (barcodes && barcodes.length) {
-        const symb = (sym||"PDF417").toUpperCase();
-        for (const data of barcodes) {
-          const payload = (data||"").trim();
-          if (!payload) continue;
-          lines.push(`BARCODE SYMBOLOGY=${symb} X=${Math.round(bx)} Y=${Math.round(by)} MODULE=${module} ROWH=6`);
-          lines.push(`BARCODE-DATA: ${payload}`);
-        }
-      } else {
-        lines.push("; (No barcode detected / provided)");
+  document.getElementById('btnClearBBoxes').onclick=()=>{ boxes=[]; drawBoxes(); refreshElemList(); };
+
+  // --- Export helpers ---
+  function toDots(px){
+    // Convert from on-screen pixels back to PDF points, then to printer dots
+    const pts = (px / viewport.width) * pagePtsW; // proportional to current viewport
+    const dots = Math.round( pts * (parseInt(dpiEl.value,10) / 72) );
+    return dots;
+  }
+
+  function exportPectab(){
+    if(!page){ alert('Load a PDF first.'); return; }
+    const dpi = parseInt(dpiEl.value,10);
+    const Wdots = Math.round(pagePtsW * dpi / 72);
+    const Hdots = Math.round(pagePtsH * dpi / 72);
+
+    const lines = [];
+    lines.push(`; PECTAB template generated by pdf2pectab (alpha)`);
+    lines.push(`; Media: ${Wdots}x${Hdots} dots @ ${dpi} dpi`);
+    lines.push(`PT;ID=${templateIdEl.value}`);
+    lines.push(`PAGE;W=${Wdots};H=${Hdots}`);
+
+    boxes.forEach(b=>{
+      const x = toDots(b.x);
+      const y = toDots(b.y);
+      const w = toDots(b.w);
+      const h = toDots(b.h);
+      if(b.type==='text'){
+        // Default font mapping A1, size approximated by height
+        const font = 'A1';
+        const size = Math.max(8, Math.round(h*0.8));
+        const token = (b.name||'TEXT').toUpperCase();
+        lines.push(`TEXT;X=${x};Y=${y};W=${w};H=${h};FONT=${font};SIZE=${size};ALIGN=LT;DATA=%${token}%`);
+      } else if(b.type==='barcode'){
+        const token = (b.name||'BAR').toUpperCase();
+        const sym = (b.opts.symbology||'CODE128').toUpperCase();
+        const mod = Number.isFinite(b.opts.module)? b.opts.module : 2;
+        lines.push(`BARCODE;TYPE=${sym};X=${x};Y=${y};W=${w};H=${h};MODULE=${mod};DATA=%${token}%`);
+      } else if(b.type==='box'){
+        const t = Math.max(1, Math.round(Math.min(w,h)*0.04));
+        lines.push(`BOX;X=${x};Y=${y};W=${w};H=${h};T=${t}`);
       }
-
-      lines.push("");
-      lines.push("; ---- GENERIC PECTAB END ----");
-      return lines.join("\\n");
-    }
-
-    function mergeWordsIntoLines(items, tolerance=6) {
-      // Merge items with similar Y (±tolerance), order by X
-      const rows = [];
-      for (const it of items) {
-        let row = rows.find(r => Math.abs(r.y - it.y) <= tolerance);
-        if (!row) { row = { y: it.y, items: [] }; rows.push(row); }
-        row.items.push(it);
-      }
-      rows.sort((a,b)=>a.y-b.y);
-      const merged = [];
-      for (const r of rows) {
-        r.items.sort((a,b)=>a.x-b.x);
-        const x = r.items[0].x;
-        const y = Math.round(r.y);
-        const size = Math.round(r.items.reduce((s,i)=>s + (i.size||10),0)/r.items.length);
-        const font = r.items[0].font || "A";
-        const text = r.items.map(i=>i.text).join(" ");
-        merged.push({ x, y, size, font, text });
-      }
-      return merged;
-    }
-
-    // --------------- State ---------------
-    let pdf = null;
-    let pageCount = 0;
-    let pageSizesPts = {}; // {pageNum:{width,height} in points}
-    let extractedTextDots = []; // across pages
-    let decodedBarcodes = new Set();
-
-    // --------------- PDF parsing ---------------
-    async function parsePdfFromBase64() {
-      const base64 = $("#b64Input").value.trim();
-      if (!base64) { alert("Paste Base64 first."); return; }
-      const dpi = Number($("#dpi").value)||203;
-      const maxPages = Math.max(1, Number($("#maxPages").value)||5);
-
-      // Reset state
-      pdf = null; pageCount = 0; pageSizesPts = {};
-      extractedTextDots = []; decodedBarcodes = new Set();
-      $("#textBlocks").value = "";
-      $("#barcodes").value = "";
-      $("#pectabOut").textContent = "";
-      $("#preview").getContext("2d").clearRect(0,0,$("#preview").width,$("#preview").height);
-
-      const bytes = b64ToUint8Array(base64);
-      pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
-      pageCount = pdf.numPages;
-
-      const toScan = Math.min(pageCount, maxPages);
-
-      for (let p=1; p<=toScan; p++) {
-        const page = await pdf.getPage(p);
-        const viewport = page.getViewport({ scale: 1.0 });
-        pageSizesPts[p] = { width: viewport.viewBox[2], height: viewport.viewBox[3] };
-
-        // Extract text
-        const txt = await page.getTextContent();
-        const hPts = viewport.viewBox[3];
-        for (const it of txt.items) {
-          const m = it.transform; // [a,b,c,d,e,f]
-          const xPts = m[4];
-          const yPtsBaseline = m[5];
-          const yPtsTop = hPts - yPtsBaseline; // flip to canvas-style origin
-          const sizePts = Math.hypot(m[0], m[1]); // approx font size
-
-          const x = pointsToDots(xPts, dpi);
-          const y = pointsToDots(yPtsTop, dpi);
-          const size = Math.max(8, Math.round(pointsToDots(sizePts, dpi) / 1.5)); // heuristic
-          extractedTextDots.push({ page:p, x, y, size, font:"A", text: it.str });
-        }
-
-        // Render to canvas and try barcode
-        await renderPageToCanvas(p, 2.0); // higher scale helps decoding
-        await tryDecodeBarcodeFromCanvas();
-      }
-
-      // Seed UI with merged lines from all parsed pages
-      const merged = mergeWordsIntoLines(extractedTextDots, 6).sort((a,b)=>a.y-b.y);
-      $("#textBlocks").value = JSON.stringify(merged, null, 2);
-      $("#barcodes").value = Array.from(decodedBarcodes).join("\\n");
-      $("#pageNum").value = 1;
-    }
-
-    async function renderPageToCanvas(pageNumber, scale=1.5) {
-      const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale });
-      const canvas = $("#preview");
-      const ctx = canvas.getContext("2d");
-      canvas.width = Math.ceil(viewport.width);
-      canvas.height = Math.ceil(viewport.height);
-      await page.render({ canvasContext: ctx, viewport }).promise;
-    }
-
-    async function tryDecodeBarcodeFromCanvas() {
-      const canvas = $("#preview");
-      if (!canvas.width || !canvas.height) return;
-      const url = canvas.toDataURL("image/png");
-      const hints = new Map();
-      const formats = [
-        ZXing.BarcodeFormat.PDF_417,
-        ZXing.BarcodeFormat.QR_CODE,
-        ZXing.BarcodeFormat.DATA_MATRIX,
-        ZXing.BarcodeFormat.AZTEC
-      ];
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-
-      const reader = new ZXing.BrowserMultiFormatReader(hints);
-      try {
-        const res = await reader.decodeFromImageUrl(url);
-        if (res && res.text) decodedBarcodes.add(res.text);
-      } catch {
-        // no barcode found — ignore
-      }
-      reader.reset();
-    }
-
-    // --------------- Wiring ---------------
-    $("#clearBtn").addEventListener("click", () => {
-      $("#b64Input").value = "";
-      $("#dpi").value = 203;
-      $("#maxPages").value = 5;
-      $("#textBlocks").value = "";
-      $("#barcodes").value = "";
-      $("#pectabOut").textContent = "";
-      const c = $("#preview");
-      c.getContext("2d").clearRect(0,0,c.width,c.height);
-      pdf = null; pageCount = 0; extractedTextDots = []; decodedBarcodes = new Set();
     });
 
-    $("#parseBtn").addEventListener("click", () => { parsePdfFromBase64(); });
+    lines.push(`PS;ID=${templateIdEl.value}`);
 
-    $("#renderBtn").addEventListener("click", async () => {
-      if (!pdf) return;
-      const n = Math.min(Math.max(1, Number($("#pageNum").value)||1), pdf.numPages);
-      await renderPageToCanvas(n, 2.0);
-      await tryDecodeBarcodeFromCanvas();
-      $("#barcodes").value = Array.from(decodedBarcodes).join("\\n");
-    });
+    const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+    downloadBlob(blob, `${templateIdEl.value}.pectab.txt`);
+  }
 
-    $("#autoLayoutBtn").addEventListener("click", () => {
-      try {
-        const arr = JSON.parse($("#textBlocks").value||"[]");
-        const merged = mergeWordsIntoLines(arr, 6);
-        $("#textBlocks").value = JSON.stringify(merged, null, 2);
-      } catch {
-        alert("Invalid JSON in Text blocks.");
-      }
-    });
+  function exportManifest(){
+    const dpi = parseInt(dpiEl.value,10);
+    const Wdots = Math.round(pagePtsW * dpi / 72);
+    const Hdots = Math.round(pagePtsH * dpi / 72);
+    const fields = boxes.map(b=>({
+      id: b.id,
+      type: b.type,
+      name: b.name,
+      x: toDots(b.x), y: toDots(b.y), w: toDots(b.w), h: toDots(b.h),
+      opts: b.opts
+    }));
+    const manifest = { templateId: templateIdEl.value, media:{dotsW:Wdots,dotsH:Hdots,dpi}, fields };
+    const blob = new Blob([JSON.stringify(manifest,null,2)], {type:'application/json'});
+    downloadBlob(blob, `${templateIdEl.value}.manifest.json`);
+  }
 
-    $("#genBtn").addEventListener("click", () => {
-      const dpi = Number($("#dpi").value)||203;
-      const page1 = pageSizesPts[1] || { width: 612, height: 360 }; // fallback
-      const pageDots = {
-        width: pointsToDots(page1.width, dpi),
-        height: pointsToDots(page1.height, dpi)
-      };
-      let tBlocks = [];
-      try { tBlocks = JSON.parse($("#textBlocks").value||"[]"); } catch { tBlocks = []; }
-      const barcodes = ($("#barcodes").value||"").split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
-      const pectab = buildPectab({
-        pageDots,
-        textBlocks: tBlocks,
-        barcodes,
-        sym: $("#barcodeSym").value,
-        module: Number($("#barcodeMod").value)||2,
-        bx: Number($("#barcodeX").value)||20,
-        by: Number($("#barcodeY").value)||200
-      });
-      $("#pectabOut").textContent = pectab;
-    });
+  function downloadBlob(blob, filename){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  }
 
-    $("#downloadBtn").addEventListener("click", () => {
-      const blob = new Blob([$("#pectabOut").textContent||""], { type: "text/plain" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "output.pectab";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-    });
-  </script>
+  document.getElementById('btnExportPectab').onclick = exportPectab;
+  document.getElementById('btnExportManifest').onclick = exportManifest;
+</script>
 </body>
 </html>
