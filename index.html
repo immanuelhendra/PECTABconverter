@@ -1,484 +1,192 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
+<title>PDF minimal text+barcode extractor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>PDF → PECTAB Converter</title>
 <style>
-  :root { --bg:#0b1220; --panel:#111a2b; --ink:#e6edf3; --muted:#92a0b3; --accent:#5eead4; }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: var(--bg); color: var(--ink); }
-  header { padding: 16px 20px; display:flex; align-items:center; gap:14px; border-bottom:1px solid #1f2a44; position:sticky; top:0; background:linear-gradient(180deg,var(--bg),#0b1220f2 70%, #0b122000); z-index:5; }
-  header h1 { font-size: 18px; margin:0; font-weight:600; letter-spacing: .3px; }
-  header .hint{ color: var(--muted); font-size:12px; }
-  main { display:grid; grid-template-columns: 420px 1fr 360px; gap:16px; padding:16px; height: calc(100% - 60px); }
-  section { background: var(--panel); border:1px solid #1f2a44; border-radius: 14px; overflow: hidden; }
-  section header { background: transparent; position: static; border:0; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; }
-  section header h2 { font-size: 14px; margin: 0; color: #cbd5e1; letter-spacing:.2px; }
-  .scroll { height: calc(100% - 44px); overflow: auto; padding: 12px; }
-  .controls label { display:block; margin:10px 0 4px; font-size:12px; color:var(--muted); }
-  input[type=file], select, button, textarea, input[type=text], input[type=number]{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid #203052; color:var(--ink); background:#0e1728; outline:none; }
-  button{ cursor:pointer; background:#0f223f; border:1px solid #233a64; transition:all .15s ease; }
-  button:hover{ border-color:#2b4d82; transform: translateY(-1px); }
-  button.accent{ background: #0b312e; border-color:#1b4a44; }
-  canvas { width:100%; height:auto; background:#0b1220; border-radius: 8px; border:1px solid #1f2a44; }
-  .row{ display:flex; gap:8px; }
-  .row>*{ flex:1; }
-  .inline { display:flex; gap:8px; align-items:center; }
-  .pill { font-size:11px; color:#93e5d8; background:#0c2b28; padding:4px 8px; border-radius:999px; border:1px solid #214e47; }
-  .det { border:1px solid #263a60; border-radius:12px; padding:8px; margin-bottom:10px; background:#0d1628; }
-  .det h4 { margin:0 0 6px 0; font-size:12px; color:#cdd8ea; }
-  .det small{ color:var(--muted); }
-  .kbd{ font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px; }
-  .out{ height:220px; }
-  .footer { font-size:12px; color:var(--muted); padding:10px 12px; border-top:1px dashed #1f2a44; }
-  .badge{ font-size:10px; padding:2px 6px; border-radius:6px; border:1px solid #334d80; background:#0f1a30; color:#b9c6e4; }
-  .ghost{ opacity:.75 }
-  .link { color:#93c5fd; text-decoration:none; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; margin: 0; background:#0b1220; color:#e6edf3}
+  .wrap { display:grid; grid-template-columns: 360px 1fr 420px; gap:12px; padding:12px; height:100vh; box-sizing:border-box }
+  section { border:1px solid #223357; border-radius:12px; padding:10px; background:#0f1a30; overflow:auto }
+  h2 { margin:6px 0 10px; font-size:14px; color:#c9d7f1 }
+  input, button { width:100%; padding:10px; border-radius:10px; border:1px solid #2a406e; background:#0b162c; color:#e6edf3; }
+  button { cursor:pointer }
+  .row{ display:flex; gap:8px; margin-top:8px }
+  canvas { width:100%; height:auto; background:#071023; border:1px solid #223357; border-radius:8px }
+  pre { white-space:pre-wrap; word-wrap:anywhere; font-family:ui-monospace, Menlo, Consolas, monospace; font-size:12px; line-height:1.35; }
+  .pill { display:inline-block; font-size:11px; padding:2px 8px; border:1px solid #345; border-radius:999px; background:#0c203a; color:#9ad; }
 </style>
 </head>
 <body>
-  <header>
-    <h1>PDF → PECTAB Converter</h1>
-    <span class="hint">Client‑side tool to detect text & barcodes, map them to fields, and export draft PECTAB + data.</span>
-  </header>
-  <main>
-    <!-- Left: Controls -->
-    <section>
-      <header>
-        <h2>1) Load PDF & Options</h2>
-      </header>
-      <div class="scroll controls">
-        <label>PDF file</label>
-        <input type="file" id="pdfFile" accept="application/pdf" />
+<div class="wrap">
+  <section>
+    <h2>1) Load</h2>
+    <input id="file" type="file" accept="application/pdf" />
+    <div class="row">
+      <input id="page" type="number" value="1" min="1" />
+      <input id="scale" type="number" value="2.0" step="0.1" min="0.5" max="5" />
+    </div>
+    <div class="row">
+      <button id="render">Render</button>
+      <button id="detect">Detect</button>
+    </div>
+    <div class="row"><pre id="log">log…</pre></div>
+  </section>
 
-        <div class="row">
-          <div>
-            <label>Page</label>
-            <input type="number" id="pageNum" value="1" min="1" />
-          </div>
-          <div>
-            <label>Scale</label>
-            <input type="number" id="scale" value="1.5" step="0.1" min="0.5" max="4" />
-          </div>
-        </div>
+  <section>
+    <h2>2) Page</h2>
+    <canvas id="c"></canvas>
+  </section>
 
-        <div class="row">
-          <button id="render">Render Page</button>
-          <button id="autodetect" class="accent">Auto‑detect (text + barcodes)</button>
-        </div>
+  <section>
+    <h2>3) Results</h2>
+    <div><span class="pill">Text items</span></div>
+    <pre id="text"></pre>
+    <div><span class="pill">Barcode</span></div>
+    <pre id="barcode"></pre>
+  </section>
+</div>
 
-        <hr style="border-color:#1f2a44; margin:14px 0"/>
+<!-- libs (CDN) -->
+<script src="https://unpkg.com/pdfjs-dist@4.2.67/build/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc="https://unpkg.com/pdfjs-dist@4.2.67/build/pdf.worker.min.js";</script>
+<script src="https://unpkg.com/@zxing/library@0.21.3"></script>
 
-        <h3 class="pill">Detection settings</h3>
-        <label class="inline"><input type="checkbox" id="usePdfText" checked style="width:auto"> <span>Use PDF text layer</span></label>
-        <label class="inline"><input type="checkbox" id="useOCR" style="width:auto"> <span>Use OCR fallback (Tesseract)</span></label>
-        <label class="inline"><input type="checkbox" id="useBarcode" checked style="width:auto"> <span>Detect barcodes (PDF417/QR/1D)</span></label>
+<script>
+const $ = s => document.querySelector(s);
+const log = (...a)=>{ const el=$("#log"); el.textContent += "\n• "+a.join(" "); console.log(...a) };
 
-        <p class="footer">Tip: If your PDF is a scan, enable OCR. If it has selectable text, the text layer is faster and more accurate.</p>
+const state = { pdf:null, page:null, viewport:null };
+const canvas = $("#c"), ctx = canvas.getContext("2d");
 
-        <h3 class="pill">Field presets</h3>
-        <small class="ghost">Select a preset to create common PECTAB fields for ATB/BTP. You can edit afterwards.</small>
-        <div class="row" style="margin-top:8px">
-          <button id="presetATB">Add ATB Preset</button>
-          <button id="presetBTP">Add BTP Preset</button>
-        </div>
+$("#file").addEventListener("change", async e=>{
+  try{
+    const f = e.target.files[0]; if(!f) return;
+    const buf = await f.arrayBuffer();
+    state.pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    $("#page").max = state.pdf.numPages;
+    $("#page").value = 1;
+    log(`Loaded ${f.name}, pages=${state.pdf.numPages}`);
+  }catch(err){ log("PDF load error:", err.message) }
+});
 
-        <h3 class="pill" style="margin-top:14px">Export</h3>
-        <div class="row" style="margin-top:6px">
-          <button id="exportPectab" class="accent">Generate PECTAB</button>
-          <button id="exportJSON">Export JSON</button>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <button id="clearAll">Clear detections</button>
-        </div>
-      </div>
-    </section>
+$("#render").addEventListener("click", async ()=>{
+  if(!state.pdf){ log("No PDF loaded"); return }
+  try{
+    const n = +$("#page").value || 1;
+    const s = +$("#scale").value || 2.0;
+    state.page = await state.pdf.getPage(n);
+    state.viewport = state.page.getViewport({scale:s});
+    canvas.width = state.viewport.width; canvas.height = state.viewport.height;
+    await state.page.render({ canvasContext: ctx, viewport: state.viewport }).promise;
+    log(`Rendered page ${n} @ scale ${s}`);
+  }catch(err){ log("Render error:", err.message) }
+});
 
-    <!-- Middle: Canvas -->
-    <section>
-      <header>
-        <h2>2) Page preview (draw or edit boxes)</h2>
-        <span class="badge">Drag to draw, click a box to select, ⌫ to remove</span>
-      </header>
-      <div class="scroll">
-        <canvas id="pageCanvas"></canvas>
-      </div>
-    </section>
+$("#detect").addEventListener("click", async ()=>{
+  $("#text").textContent = "";
+  $("#barcode").textContent = "";
+  drawOverlay(); // clear
+  await detectText();
+  await detectBarcode();
+  drawOverlay(true);
+});
 
-    <!-- Right: Detections & Output -->
-    <section>
-      <header>
-        <h2>3) Detections & Mapping</h2>
-        <span class="badge">Map each detection to a field</span>
-      </header>
-      <div class="scroll" id="detList"></div>
-      <div class="footer">
-        <div class="row">
-          <div>
-            <label>PECTAB (layout)</label>
-            <textarea id="pectabOut" class="out kbd" placeholder="Generated PECTAB layout will appear here…"></textarea>
-          </div>
-        </div>
-        <div class="row" style="margin-top:8px">
-          <div>
-            <label>Data (ATB/BTP)</label>
-            <textarea id="dataOut" class="out kbd" placeholder="Generated PECTAB data string (from mapped fields)…"></textarea>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Libraries via CDN -->
-  <script src="https://unpkg.com/pdfjs-dist@4.2.67/build/pdf.min.js"></script>
-  <script>pdfjsLib.GlobalWorkerOptions.workerSrc = "https://unpkg.com/pdfjs-dist@4.2.67/build/pdf.worker.min.js";</script>
-  <script src="https://unpkg.com/@zxing/library@0.21.3"></script>
-  <script src="https://unpkg.com/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
-
-  <script>
-  // ---------- Minimal state ----------
-  const $ = (s, el=document) => el.querySelector(s);
-  const $$ = (s, el=document) => [...el.querySelectorAll(s)];
-  const state = {
-    pdf: null,
-    page: null,
-    pageNum: 1,
-    scale: 1.5,
-    detections: [],      // {id, type:'text'|'barcode', value, rect:{x,y,w,h}, conf, fieldName, font, size, align}
-    selectedId: null,
-  };
-
-  const canvas = document.getElementById('pageCanvas');
-  const ctx = canvas.getContext('2d');
-
-  // ---------- Rendering ----------
-  async function renderPage() {
-    if (!state.pdf) return;
-    state.pageNum = Number($('#pageNum').value || 1);
-    state.scale = Number($('#scale').value || 1.5);
-
-    const page = await state.pdf.getPage(state.pageNum);
-    state.page = page;
-    const viewport = page.getViewport({ scale: state.scale });
-    canvas.width = viewport.width; canvas.height = viewport.height;
-
-    const renderTask = page.render({ canvasContext: ctx, viewport });
-    await renderTask.promise;
-
-    drawOverlay();
-  }
-
-  function drawOverlay() {
-    if (!state.page) return;
-    // Repaint page by re-rendering last frame stored in canvas (already drawn)
-    // Draw selections
-    ctx.save();
-    for (const det of state.detections) {
-      const {x,y,w,h} = det.rect;
-      ctx.strokeStyle = det.id === state.selectedId ? '#93e5d8' : (det.type === 'barcode' ? '#fbbf24' : '#60a5fa');
-      ctx.lineWidth = det.id === state.selectedId ? 3 : 2;
-      ctx.strokeRect(x, y, w, h);
-      ctx.fillStyle = 'rgba(0,0,0,0.45)';
-      ctx.fillRect(x, y-16, Math.max(60, ctx.measureText(det.fieldName || det.type).width + 12), 16);
-      ctx.fillStyle = '#e6edf3';
-      ctx.font = '12px ui-monospace';
-      ctx.fillText((det.fieldName || det.type).toUpperCase(), x+6, y-4);
+async function detectText(){
+  if(!state.page){ log("DetectText: no page"); return }
+  try{
+    const tc = await state.page.getTextContent();
+    const vp = state.viewport;
+    const rows = [];
+    for(const item of tc.items){
+      const tr = pdfjsLib.Util.transform(vp.transform, item.transform);
+      const x = tr[4];
+      const yTop = tr[5] - item.height; // convert PDF bottom-left to canvas top-left
+      const w = item.width, h = item.height;
+      const text = item.str.trim();
+      if(!text) continue;
+      rows.push({text, x:Math.round(x), y:Math.round(yTop), w:Math.round(w), h:Math.round(h)});
     }
-    ctx.restore();
-  }
+    $("#text").textContent = rows.map(r=>`${r.text}  |  x=${r.x}, y=${r.y}, w=${r.w}, h=${r.h}`).join("\n");
+    state.textRects = rows.map(r=>({x:r.x,y:r.y,w:r.w,h:r.h}));
+    log(`Text items: ${rows.length}`);
+  }catch(err){ log("Text error:", err.message) }
+}
 
-  // ---------- PDF loading ----------
-  $('#pdfFile').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const buf = await file.arrayBuffer();
-    state.pdf = await pdfjsLib.getDocument({data: buf}).promise;
-    $('#pageNum').max = state.pdf.numPages;
-    $('#pageNum').value = 1;
-    await renderPage();
-  });
-
-  $('#render').addEventListener('click', renderPage);
-
-  // ---------- Auto-detect ----------
-  $('#autodetect').addEventListener('click', async () => {
-    state.detections = [];
-    drawOverlay();
-    await detectAll();
-  });
-
-  async function detectAll(){
-    if (!state.page) return;
-    const usePdfText = $('#usePdfText').checked;
-    const useOCR = $('#useOCR').checked;
-    const useBarcode = $('#useBarcode').checked;
-
-    if (usePdfText) await detectTextFromPdfLayer();
-    if (useOCR) await detectTextWithOCR();
-    if (useBarcode) await detectBarcodes();
-
-    refreshDetList();
-    drawOverlay();
-  }
-
-  async function detectTextFromPdfLayer(){
-    const textContent = await state.page.getTextContent();
-    const viewport = state.page.getViewport({ scale: state.scale });
-
-    for (const item of textContent.items){
-      const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-      const x = tx[4];
-      const y = tx[5] - item.height; // PDF origin bottom-left
-      const w = item.width;
-      const h = item.height;
-      const str = (item.str || '').trim();
-      if (!str) continue;
-      addDetection({ type:'text', value:str, rect:{x,y,w,h}, conf:0.99 });
-    }
-  }
-
-  async function detectTextWithOCR(){
-    const dataURL = canvas.toDataURL('image/png');
-    const { data: { lines } } = await Tesseract.recognize(dataURL, 'eng', { logger: m => console.debug(m) });
-    for (const ln of lines){
-      const { x0,y0,x1,y1 } = ln.bbox; // already top-left
-      addDetection({ type:'text', value: ln.text.trim(), rect:{x:x0,y:y0,w:x1-x0,h:y1-y0}, conf: ln.confidence/100 });
-    }
-  }
-
-  async function detectBarcodes(){
-    const codeReader = new ZXing.BrowserBarcodeReader(undefined, { delayBetweenScanAttempts: 0 });
-    const tempImg = new Image();
-    tempImg.src = canvas.toDataURL('image/png');
-    await new Promise(r => tempImg.onload = r);
-
-    // Try multiple formats, including PDF_417
+async function detectBarcode(){
+  try{
+    const img = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const lumin = new ZXing.RGBLuminanceSource(img.data, canvas.width, canvas.height);
+    let bin = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lumin));
+    const reader = new ZXing.MultiFormatReader();
     const hints = new Map();
     hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    const formats = [
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
       ZXing.BarcodeFormat.PDF_417,
       ZXing.BarcodeFormat.CODE_128,
       ZXing.BarcodeFormat.CODE_39,
       ZXing.BarcodeFormat.QR_CODE,
+      ZXing.BarcodeFormat.ITF,
       ZXing.BarcodeFormat.EAN_13,
       ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.ITF
-    ];
+    ]);
+    reader.setHints(hints);
 
-    for (const fmt of formats){
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [fmt]);
+    let res = null, rotated = false;
+    try { res = reader.decode(bin); }
+    catch(e){
+      // try rotated 90° CCW
+      const rot = lumin.rotateCounterClockwise();
+      bin = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(rot));
+      res = reader.decode(bin);
+      rotated = true;
+    }
+
+    if(res){
+      const text = res.getText ? res.getText() : String(res.text || "");
+      const fmt  = res.getBarcodeFormat ? res.getBarcodeFormat() : "AUTO";
+      // Try to build a rectangle from result points (if provided)
+      let rect = null;
       try{
-        const luminanceSource = await codeReader['createBinaryBitmapFromImage'](tempImg);
-        const result = ZXing.MultiFormatReader.decode(luminanceSource, hints);
-        if (result){
-          // bounding box is not given by this helper; approximate by scanning area
-          addDetection({ type:'barcode', value: result.getText(), rect:{x:20,y:20,w:canvas.width-40,h:120}, conf:1.0, format: ZXing.BarcodeFormat[fmt] });
-          break;
+        const pts = res.getResultPoints ? res.getResultPoints() : null;
+        if(pts && pts.length){
+          const xs = pts.map(p=>p.getX()), ys = pts.map(p=>p.getY());
+          const x = Math.min(...xs), y = Math.min(...ys);
+          const w = Math.max(...xs)-x, h = Math.max(...ys)-y;
+          if(w>5 && h>5) rect = {x,y,w,h};
         }
-      }catch(err){ /* continue */ }
+      }catch(_){}
+      if(!rect) rect = {x:20,y:20,w:canvas.width-40,h:120}; // conservative fallback
+
+      $("#barcode").textContent =
+        `value=${text}\nformat=${fmt}${rotated?' (rotated pass)':''}\nrect: x=${rect.x}, y=${rect.y}, w=${rect.w}, h=${rect.h}`;
+      state.barRect = rect;
+      log(`Barcode OK (${fmt})`);
+    } else {
+      $("#barcode").textContent = "No barcode found. Try higher Scale (2.0–3.0) and re-render.";
+      state.barRect = null;
+      log("Barcode not found");
     }
+  }catch(err){
+    $("#barcode").textContent = "Barcode error: "+err.message;
+    log("Barcode error:", err.message);
   }
+}
 
-  function addDetection(det){
-    det.id = crypto.randomUUID();
-    det.fieldName = det.fieldName || '';
-    det.font = det.font || 'A';
-    det.size = det.size || 10;
-    det.align = det.align || 'L';
-    state.detections.push(det);
+function drawOverlay(final=false){
+  if(!state.page) return;
+  // re-draw page snapshot is already on canvas; overlay rectangles:
+  ctx.save();
+  if(state.textRects){
+    ctx.strokeStyle = final ? "#60a5fa" : "#224";
+    ctx.lineWidth = 2;
+    for(const r of state.textRects){ ctx.strokeRect(r.x, r.y, r.w, r.h); }
   }
-
-  // ---------- Detections list & editing ----------
-  function refreshDetList(){
-    const root = document.getElementById('detList');
-    root.innerHTML = '';
-    state.detections.forEach((d,i) => {
-      const el = document.createElement('div');
-      el.className = 'det';
-      el.innerHTML = `
-        <h4>#${i+1} <span class="badge">${d.type}</span></h4>
-        <div class="row">
-          <input type="text" placeholder="Field name (e.g., SURNAME, FLTNO, BCBP)" value="${d.fieldName}" data-k="fieldName" data-id="${d.id}" />
-        </div>
-        <div class="row" style="margin-top:6px">
-          <input type="text" class="kbd" value="${(d.value||'').replace(/\"/g,'&quot;')}" data-k="value" data-id="${d.id}" />
-        </div>
-        <div class="row" style="margin-top:6px">
-          <input type="number" value="${Math.round(d.rect.x)}" data-k="x" data-id="${d.id}" />
-          <input type="number" value="${Math.round(d.rect.y)}" data-k="y" data-id="${d.id}" />
-          <input type="number" value="${Math.round(d.rect.w)}" data-k="w" data-id="${d.id}" />
-          <input type="number" value="${Math.round(d.rect.h)}" data-k="h" data-id="${d.id}" />
-        </div>
-        <div class="row" style="margin-top:6px">
-          <select data-k="font" data-id="${d.id}">
-            <option ${d.font==='A'?'selected':''}>A</option>
-            <option ${d.font==='B'?'selected':''}>B</option>
-            <option ${d.font==='C'?'selected':''}>C</option>
-          </select>
-          <input type="number" value="${d.size}" data-k="size" data-id="${d.id}" />
-          <select data-k="align" data-id="${d.id}">
-            <option value="L" ${d.align==='L'?'selected':''}>Left</option>
-            <option value="C" ${d.align==='C'?'selected':''}>Center</option>
-            <option value="R" ${d.align==='R'?'selected':''}>Right</option>
-          </select>
-          <button data-id="${d.id}" class="del">Delete</button>
-        </div>
-        <small>Box: x,y,w,h</small>
-      `;
-      root.appendChild(el);
-    });
-
-    root.querySelectorAll('input,select,textarea,button').forEach(el => {
-      const id = el.dataset.id;
-      if (!id) return;
-      if (el.classList.contains('del')){
-        el.addEventListener('click', () => {
-          state.detections = state.detections.filter(d => d.id !== id);
-          refreshDetList(); drawOverlay();
-        });
-      } else {
-        el.addEventListener('input', () => {
-          const k = el.dataset.k;
-          const det = state.detections.find(d => d.id === id);
-          if (!det) return;
-          if (k === 'x' || k==='y' || k==='w' || k==='h') det.rect[k] = Number(el.value);
-          else det[k] = el.value;
-          drawOverlay();
-        });
-      }
-    });
+  if(state.barRect){
+    const r = state.barRect; ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 3; ctx.strokeRect(r.x,r.y,r.w,r.h);
   }
-
-  // ---------- Canvas selection (draw boxes) ----------
-  let drag = null;
-  canvas.addEventListener('mousedown', (e)=>{
-    const r = canvas.getBoundingClientRect();
-    const x = e.clientX - r.left, y = e.clientY - r.top;
-    drag = {x,y};
-  });
-  window.addEventListener('mousemove', (e)=>{
-    if (!drag) return;
-    const r = canvas.getBoundingClientRect();
-    const x2 = e.clientX - r.left, y2 = e.clientY - r.top;
-    const rect = {x:Math.min(drag.x,x2), y:Math.min(drag.y,y2), w:Math.abs(x2-drag.x), h:Math.abs(y2-drag.y)};
-    // Temp drawing
-    renderPage().then(()=>{ ctx.save(); ctx.strokeStyle='#6ee7b7'; ctx.setLineDash([6,4]); ctx.strokeRect(rect.x,rect.y,rect.w,rect.h); ctx.restore(); });
-  });
-  window.addEventListener('mouseup', (e)=>{
-    if (!drag) return;
-    const r = canvas.getBoundingClientRect();
-    const x2 = e.clientX - r.left, y2 = e.clientY - r.top;
-    const rect = {x:Math.min(drag.x,x2), y:Math.min(drag.y,y2), w:Math.abs(x2-drag.x), h:Math.abs(y2-drag.y)};
-    drag = null;
-    addDetection({ type:'text', value:'', rect, conf:0.5 });
-    refreshDetList(); drawOverlay();
-  });
-  window.addEventListener('keydown', (e)=>{
-    if (e.key === 'Delete' && state.selectedId){
-      state.detections = state.detections.filter(d=>d.id!==state.selectedId);
-      state.selectedId = null; refreshDetList(); drawOverlay();
-    }
-  });
-  canvas.addEventListener('click', (e)=>{
-    const r = canvas.getBoundingClientRect();
-    const x = e.clientX - r.left, y = e.clientY - r.top;
-    // hit test
-    for (const d of [...state.detections].reverse()){
-      const {x:dx,y:dy,w,h} = d.rect;
-      if (x>=dx && x<=dx+w && y>=dy && y<=dy+h){ state.selectedId = d.id; drawOverlay(); return; }
-    }
-    state.selectedId = null; drawOverlay();
-  });
-
-  // ---------- Presets ----------
-  function addPreset(type){
-    const presets = type==='ATB' ? [
-      {fieldName:'SURNAME', font:'A', size:12},
-      {fieldName:'GIVEN', font:'A', size:12},
-      {fieldName:'FLTNO', font:'B', size:12},
-      {fieldName:'DATE', font:'B', size:12},
-      {fieldName:'FROM', font:'B', size:12},
-      {fieldName:'TO', font:'B', size:12},
-      {fieldName:'SEAT', font:'B', size:12},
-      {fieldName:'SEQ', font:'B', size:12},
-      {fieldName:'BCBP', type:'barcode'}
-    ] : [
-      {fieldName:'NAME', font:'A', size:12},
-      {fieldName:'TAG', font:'B', size:12},
-      {fieldName:'ORIGIN', font:'B', size:12},
-      {fieldName:'DEST', font:'B', size:12},
-      {fieldName:'FLIGHT', font:'B', size:12},
-      {fieldName:'BAGCNT', font:'B', size:12},
-      {fieldName:'BARCODE', type:'barcode'}
-    ];
-
-    for (const p of presets){ addDetection({ type: p.type || 'text', value:'', rect:{x:40,y:40,w:160,h:24}, conf:1, font:p.font, size:p.size, fieldName:p.fieldName }); }
-    refreshDetList(); drawOverlay();
-  }
-  $('#presetATB').addEventListener('click', ()=>addPreset('ATB'));
-  $('#presetBTP').addEventListener('click', ()=>addPreset('BTP'));
-
-  // ---------- Export: PECTAB layout + data ----------
-  function toPECTAB(){
-    // NOTE: This generates a *draft* PECTAB (ATB/BTP) layout syntax that many editors accept.
-    // Coordinates are in pixels at the current render scale, origin=top-left.
-    // You may need to fine-tune fonts/sizes in your downstream PECTAB tool.
-    const L = [];
-    L.push('AD; // Begin PECTAB');
-    for (const d of state.detections){
-      const {x,y,w,h} = d.rect; const X=Math.round(x), Y=Math.round(y), W=Math.round(w), H=Math.round(h);
-      if (d.type==='barcode'){
-        // B: Barcode block — using PDF417 by default
-        L.push(`B; TYPE=PDF417; X=${X}; Y=${Y}; W=${W}; H=${H}; FIELD=${d.fieldName||'BARCODE'};`);
-      } else {
-        // T: Text block — font family A/B/C are placeholders used by many PECTAB tools
-        const val = d.value ? d.value.replace(/"/g,'\"') : `#{${(d.fieldName||'FIELD').toUpperCase()}}`;
-        L.push(`T; FONT=${d.font||'A'}; SIZE=${d.size||10}; X=${X}; Y=${Y}; W=${W}; H=${H}; ALIGN=${d.align||'L'}; FIELD=${(d.fieldName||'TEXT')}; TEXT="${val}";`);
-      }
-    }
-    L.push('ED; // End PECTAB');
-    return L.join('\n');
-  }
-
-  function toDataString(){
-    // Very light-weight mapping to generate an ATB/BTP-like data string from known fields.
-    // You can customize this function per airline/airport needs.
-    const F = Object.fromEntries(state.detections.map(d=>[d.fieldName?.toUpperCase()||'', (d.value||'').trim()]));
-
-    // Example ATB: BTP010101#01HU/HAISHENGMR#... (purely illustrative)
-    const parts = [];
-    if (F.SURNAME || F.GIVEN) parts.push(`${(F.SURNAME||'')}${F.GIVEN?('/'+F.GIVEN):''}`);
-    if (F.FLTNO) parts.push(`FLT${F.FLTNO}`);
-    if (F.DATE) parts.push(`DT${F.DATE}`);
-    if (F.FROM && F.TO) parts.push(`${F.FROM}-${F.TO}`);
-    if (F.SEAT) parts.push(`SEAT${F.SEAT}`);
-    if (F.SEQ) parts.push(`SEQ${F.SEQ}`);
-    if (F.BCBP) parts.push(`BCBP:${F.BCBP}`);
-
-    // Barcode fallback becomes BCBP if not explicitly mapped
-    if (!F.BCBP){ const bc = state.detections.find(d=>d.type==='barcode'); if (bc) parts.push(`BCBP:${(bc.value||'').trim()}`); }
-
-    return parts.filter(Boolean).join(' | ');
-  }
-
-  $('#exportPectab').addEventListener('click', ()=>{
-    $('#pectabOut').value = toPECTAB();
-    $('#dataOut').value = toDataString();
-  });
-
-  $('#exportJSON').addEventListener('click', ()=>{
-    const payload = { scale: state.scale, pageNum: state.pageNum, detections: state.detections };
-    const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'pectab-export.json'; a.click(); URL.revokeObjectURL(url);
-  });
-
-  $('#clearAll').addEventListener('click', ()=>{ state.detections=[]; refreshDetList(); drawOverlay(); });
-
-  // ---------- Init message ----------
-  (function(){ console.log('%cPDF → PECTAB Converter ready','color:#5eead4'); })();
-  </script>
+  ctx.restore();
+}
+</script>
 </body>
 </html>
