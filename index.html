@@ -76,6 +76,39 @@
       <div class="space-y-2">
         <button id="btnExport" class="w-full px-3 py-2 rounded-xl bg-emerald-600 text-white shadow">Export PECTAB Skeleton</button>
         <textarea id="output" rows="10" class="w-full border rounded-xl p-2 font-mono text-xs" placeholder="Exported PECTAB will appear here…"></textarea>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-sm font-semibold">Mode</label>
+            <select id="mode" class="w-full border rounded-lg p-2">
+              <option value="BTP" selected>BTP (bag tag)</option>
+              <option value="ATB">ATB (boarding pass)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold">Header</label>
+            <input id="header" type="text" class="w-full border rounded-lg p-2" placeholder="BTP010101 or 3CP#1C01" value="BTP010101" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-sm font-semibold">Terminator</label>
+            <input id="terminator" type="text" class="w-full border rounded-lg p-2" placeholder="$" value="$" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold">Separator</label>
+            <input id="separator" type="text" class="w-full border rounded-lg p-2" placeholder="#" value="#" />
+          </div>
+        </div>
+
+        <label class="block text-sm font-semibold mt-2">PECTAB Template (optional — pasted string)</label>
+        <textarea id="template" rows="6" class="w-full border rounded-xl p-2 font-mono text-xs" placeholder="Paste your AD;... PECTAB template here to export together with Data"></textarea>
+
+        <button id="btnExportAEA" class="w-full px-3 py-2 rounded-xl bg-indigo-600 text-white shadow">Export AEA/TPS Data String</button>
+        <textarea id="outputAEA" rows="8" class="w-full border rounded-xl p-2 font-mono text-xs" placeholder="BTP010101#... or 3CP#1C01#... will appear here (uses field Codes + Sample Text values)"></textarea>
+
+        <button id="btnExportCombined" class="w-full px-3 py-2 rounded-xl bg-slate-900 text-white shadow">Export Combined (Template + Data)</button>
+        <textarea id="outputCombined" rows="10" class="w-full border rounded-xl p-2 font-mono text-xs" placeholder="Combined export (Template + Data) will appear here"></textarea>
       </div>
 
       <details class="text-sm text-slate-600">
@@ -176,14 +209,7 @@
 
   function addField(partial) {
     const id = crypto.randomUUID();
-    const f = Object.assign({ id, type:'TEXT', name:'FIELD_'+(fields.length+1), x:50, y:50, w:200, h:60, font:'SANSSERIF', size:28, weight:'NORMAL', text:'' }, partial);
-    fields.push(f);
-    selectedId = id;
-    drawOverlay();
-    renderFieldsList();
-  }
-
-  document.getElementById('btnAddText').onclick = () => addField({ type:'TEXT' });
+    const f = Object.assign({ id, type:'TEXT', name:'FIELD_'+(fields.length+1), code:'', x:50, y:50, w:200, h:60, font:'SANSSERIF', size:28, weight:'NORMAL', text:'' }, partial);
   document.getElementById('btnAddBarcode').onclick = () => addField({ type:'BARCODE', name:'BCBP', w:400, h:200 });
   document.getElementById('btnClear').onclick = () => { fields.length = 0; selectedId = null; drawOverlay(); renderFieldsList(); };    const w = 200, h = 220; // visual box for reference
     addField({ type:'TEXT', name:'GIANT_A', x: (width - w)/2, y: (height - h)/2, w, h, size:220, weight:'BOLD', text:'A' });
@@ -274,36 +300,37 @@
       const div = document.createElement('div');
       div.className = 'border rounded-xl p-3 hover:shadow transition';
       div.innerHTML = `
-        <div class="flex justify-between items-center">
-          <div class="font-mono text-sm"><b>${f.type}</b> — ${f.name}</div>
-          <div class="flex gap-2">
-            <button data-act="sel" class="text-xs px-2 py-1 rounded bg-slate-200">Select</button>
-            <button data-act="del" class="text-xs px-2 py-1 rounded bg-rose-600 text-white">Delete</button>
+        <div class=\"flex justify-between items-center\">
+          <div class=\"font-mono text-sm\"><b>${f.type}</b> — ${f.name}</div>
+          <div class=\"flex gap-2\">
+            <button data-act=\"sel\" class=\"text-xs px-2 py-1 rounded bg-slate-200\">Select</button>
+            <button data-act=\"del\" class=\"text-xs px-2 py-1 rounded bg-rose-600 text-white\">Delete</button>
           </div>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-6 gap-2 mt-2 text-xs">
-          <label class="flex flex-col">Name<input data-k="name" value="${f.name}" class="border rounded p-1"></label>
-          <label class="flex flex-col">Type
-            <select data-k="type" class="border rounded p-1">
+        <div class=\"grid grid-cols-2 md:grid-cols-7 gap-2 mt-2 text-xs\">
+          <label class=\"flex flex-col\">Name<input data-k=\"name\" value=\"${f.name}\" class=\"border rounded p-1\"></label>
+          <label class=\"flex flex-col\">Type
+            <select data-k=\"type\" class=\"border rounded p-1\">
               <option ${f.type==='TEXT'?'selected':''}>TEXT</option>
               <option ${f.type==='BARCODE'?'selected':''}>BARCODE</option>
             </select>
           </label>
-          <label class="flex flex-col">X<input data-k="x" type="number" step="1" value="${f.x}" class="border rounded p-1"></label>
-          <label class="flex flex-col">Y<input data-k="y" type="number" step="1" value="${f.y}" class="border rounded p-1"></label>
-          <label class="flex flex-col">W<input data-k="w" type="number" step="1" value="${f.w}" class="border rounded p-1"></label>
-          <label class="flex flex-col">H<input data-k="h" type="number" step="1" value="${f.h}" class="border rounded p-1"></label>
+          <label class=\"flex flex-col\">Code<input data-k=\"code\" value=\"${f.code||''}\" class=\"border rounded p-1\" placeholder=\"e.g. 01, 25, 85\"></label>
+          <label class=\"flex flex-col\">X<input data-k=\"x\" type=\"number\" step=\"1\" value=\"${f.x}\" class=\"border rounded p-1\"></label>
+          <label class=\"flex flex-col\">Y<input data-k=\"y\" type=\"number\" step=\"1\" value=\"${f.y}\" class=\"border rounded p-1\"></label>
+          <label class=\"flex flex-col\">W<input data-k=\"w\" type=\"number\" step=\"1\" value=\"${f.w}\" class=\"border rounded p-1\"></label>
+          <label class=\"flex flex-col\">H<input data-k=\"h\" type=\"number\" step=\"1\" value=\"${f.h}\" class=\"border rounded p-1\"></label>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-xs">
-          <label class="flex flex-col">Font<input data-k="font" value="${f.font}" class="border rounded p-1"></label>
-          <label class="flex flex-col">Size<input data-k="size" type="number" step="1" value="${f.size}" class="border rounded p-1"></label>
-          <label class="flex flex-col">Weight
-            <select data-k="weight" class="border rounded p-1">
+        <div class=\"grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-xs\">
+          <label class=\"flex flex-col\">Font<input data-k=\"font\" value=\"${f.font}\" class=\"border rounded p-1\"></label>
+          <label class=\"flex flex-col\">Size<input data-k=\"size\" type=\"number\" step=\"1\" value=\"${f.size}\" class=\"border rounded p-1\"></label>
+          <label class=\"flex flex-col\">Weight
+            <select data-k=\"weight\" class=\"border rounded p-1\">
               <option ${f.weight==='NORMAL'?'selected':''}>NORMAL</option>
               <option ${f.weight==='BOLD'?'selected':''}>BOLD</option>
             </select>
           </label>
-          <label class="flex flex-col">Sample Text<input data-k="text" value="${f.text || ''}" class="border rounded p-1"></label>
+          <label class=\"flex flex-col\">Sample Text<input data-k=\"text\" value=\"${f.text || ''}\" class=\"border rounded p-1\" placeholder=\"Preview text for this field\"></label>
         </div>
       `;
       div.querySelectorAll('input,select').forEach(inp => {
@@ -383,6 +410,29 @@ if (!mediaH) {
   }
 
   document.getElementById('btnExport').onclick = exportPectab;
+  document.getElementById('btnExportAEA').onclick = exportAEA;
+  document.getElementById('btnExportCombined').onclick = exportCombined;
+  function exportAEA(){
+    // Build AEA/TPS data string using configured header, separator and terminator.
+    const header = document.getElementById('header').value || '';
+    const sep = document.getElementById('separator').value || '#';
+    const term = document.getElementById('terminator').value || '$';
+    let s = header;
+    fields.forEach(f => {
+      if (!f.code) return; // only include fields with codes
+      const code = String(f.code).replace(/[^0-9A-Za-z]/g,'');
+      let val = (f.text || '').replace(new RegExp(sep,'g'),''); // avoid breaking separators
+      s += `${sep}${code}${val}${sep}`;
+    });
+    document.getElementById('outputAEA').value = s + term;
+  }
+
+  function exportCombined(){
+    const tpl = document.getElementById('template').value || '';
+    const data = document.getElementById('outputAEA').value || '';
+    const out = [tpl.trim(), data.trim()].filter(Boolean).join('\n\n');
+    document.getElementById('outputCombined').value = out;
+  }
 </script>
 </body>
 </html>
