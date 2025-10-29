@@ -7,11 +7,10 @@
   <!-- Tailwind (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- PDF.js (CDN) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha512-+d2N4l8a7Eo3lM3iSE8pXo4Y7e9Q3kQp0E6tJZ8l5EoYFJ0K+0M3aB0fW0wzXl7cA7b0T8c2+7b6i5r+5jzJmA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <style>
     html, body { height: 100%; }
     canvas { image-rendering: pixelated; }
-    .handle { position:absolute; width:10px; height:10px; background:#fff; border:1px solid #000; border-radius:2px; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -19,12 +18,12 @@
     <!-- Controls -->
     <section class="lg:col-span-1 bg-white rounded-2xl shadow p-4 space-y-4 sticky top-4 h-fit">
       <h1 class="text-2xl font-bold">PDF → PECTAB Skeleton</h1>
-      <p class="text-sm text-slate-600">Load a PDF (first page), draw fields, set media and DPI, then export a PECTAB-like skeleton.</p>
+      <p class="text-sm text-slate-600">Load a PDF (first page), draw fields, set media + DPI, then export a PECTAB-like skeleton and an AEA/TPS data string.</p>
 
       <div class="space-y-2">
         <label class="block text-sm font-semibold">1) Upload PDF</label>
         <input id="pdfFile" type="file" accept="application/pdf" class="block w-full text-sm" />
-        <div class="text-xs text-slate-500">Only the first page is previewed for now.</div>
+        <div class="text-xs text-slate-500">Only the first page is previewed.</div>
       </div>
 
       <div class="grid grid-cols-2 gap-2">
@@ -43,15 +42,16 @@
           </select>
         </div>
       </div>
+
       <div class="grid grid-cols-2 gap-2">
         <div>
           <label class="block text-sm font-semibold">Media Width</label>
-          <input id=\"mediaW\"$1placeholder=\"83\" value=\"83\" />
+          <input id="mediaW" type="number" step="0.01" class="w-full border rounded-lg p-2" placeholder="83" value="83" />
           <div class="text-xs text-slate-500">e.g. 83 mm (3.25 in)</div>
         </div>
         <div>
           <label class="block text-sm font-semibold">Media Height</label>
-          <input id=\"mediaH\"$1placeholder=\"203\" value=\"203\" />
+          <input id="mediaH" type="number" step="0.01" class="w-full border rounded-lg p-2" placeholder="203" value="203" />
           <div class="text-xs text-slate-500">e.g. 203 mm (8 in)</div>
         </div>
       </div>
@@ -79,15 +79,12 @@
 
         <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="block text-sm font-semibold">Mode</label>
-            <select id="mode" class="w-full border rounded-lg p-2">
-              <option value="BTP" selected>BTP (bag tag)</option>
-              <option value="ATB">ATB (boarding pass)</option>
-            </select>
-          </div>
-          <div>
             <label class="block text-sm font-semibold">Header</label>
             <input id="header" type="text" class="w-full border rounded-lg p-2" placeholder="BTP010101 or 3CP#1C01" value="BTP010101" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold">Separator</label>
+            <input id="separator" type="text" class="w-full border rounded-lg p-2" placeholder="#" value="#" />
           </div>
         </div>
         <div class="grid grid-cols-2 gap-2">
@@ -96,15 +93,12 @@
             <input id="terminator" type="text" class="w-full border rounded-lg p-2" placeholder="$" value="$" />
           </div>
           <div>
-            <label class="block text-sm font-semibold">Separator</label>
-            <input id="separator" type="text" class="w-full border rounded-lg p-2" placeholder="#" value="#" />
+            <label class="block text-sm font-semibold">(Optional) PECTAB Template</label>
+            <input id="templateOneLine" type="text" class="w-full border rounded-lg p-2 font-mono text-xs" placeholder="Paste AD;... here to include with Combined" />
           </div>
         </div>
 
-        <label class="block text-sm font-semibold mt-2">PECTAB Template (optional — pasted string)</label>
-        <textarea id="template" rows="6" class="w-full border rounded-xl p-2 font-mono text-xs" placeholder="Paste your AD;... PECTAB template here to export together with Data"></textarea>
-
-        <button id="btnExportAEA" class="w-full px-3 py-2 rounded-xl bg-indigo-600 text-white shadow">Export AEA/TPS Data String</button>
+        <button id="btnExportAEA" class="w-full px-3 py-2 rounded-xl bg-indigo-600 text-white shadow">Export AEA/TPS Data</button>
         <textarea id="outputAEA" rows="8" class="w-full border rounded-xl p-2 font-mono text-xs" placeholder="BTP010101#... or 3CP#1C01#... will appear here (uses field Codes + Sample Text values)"></textarea>
 
         <button id="btnExportCombined" class="w-full px-3 py-2 rounded-xl bg-slate-900 text-white shadow">Export Combined (Template + Data)</button>
@@ -114,9 +108,9 @@
       <details class="text-sm text-slate-600">
         <summary class="cursor-pointer font-semibold">Tips</summary>
         <ul class="list-disc ml-5 mt-2 space-y-1">
-          <li>Standard ATB size ≈ <b>8 × 3.25 in</b> (≈ 203 × 83 mm). Set DPI to 203 or 300.</li>
+          <li>Standard ATB size ≈ <b>8 × 3.25 in</b> (≈ 203 × 83 mm). Use 203 or 300 DPI.</li>
           <li>Draw boxes over the PDF. Click a box to edit properties (name, size, etc.).</li>
-          <li>Export generates a vendor-agnostic PECTAB-like skeleton; adapt keywords to your firmware.</li>
+          <li>Export generates a vendor-agnostic skeleton; adapt keywords to your printer firmware.</li>
         </ul>
       </details>
     </section>
@@ -154,7 +148,6 @@
   const overlay = document.getElementById('overlay');
   const ctx = pdfCanvas.getContext('2d');
   const octx = overlay.getContext('2d');
-  const canvasWrap = document.getElementById('canvasWrap');
 
   let pdfDoc = null, scale = 1.2, pageViewport = null;
 
@@ -204,16 +197,22 @@
   zoomResetBtn.onclick = () => rerenderAt(1.2);
 
   // ------------ FIELD MODEL -------------
-  const fields = []; // {id, type:'TEXT'|'BARCODE', name, x,y,w,h, font, size, weight, text}
+  const fields = []; // {id, type:'TEXT'|'BARCODE', name, code, x,y,w,h, font, size, weight, text}
   let dragging = false, startX=0, startY=0; let currentRect = null; let selectedId = null;
 
-  function addField(partial) {
+  function addField(partial={}) {
     const id = crypto.randomUUID();
-    const f = Object.assign({ id, type:'TEXT', name:'FIELD_'+(fields.length+1), code:'', x:50, y:50, w:200, h:60, font:'SANSSERIF', size:28, weight:'NORMAL', text:'' }, partial);
+    const def = { id, type:'TEXT', name:'FIELD_'+(fields.length+1), code:'', x:50, y:50, w:200, h:60, font:'SANSSERIF', size:28, weight:'NORMAL', text:'' };
+    const f = Object.assign(def, partial);
+    fields.push(f);
+    selectedId = f.id;
+    drawOverlay();
+    renderFieldsList();
+  }
+
+  document.getElementById('btnAddText').onclick = () => addField({ type:'TEXT' });
   document.getElementById('btnAddBarcode').onclick = () => addField({ type:'BARCODE', name:'BCBP', w:400, h:200 });
-  document.getElementById('btnClear').onclick = () => { fields.length = 0; selectedId = null; drawOverlay(); renderFieldsList(); };    const w = 200, h = 220; // visual box for reference
-    addField({ type:'TEXT', name:'GIANT_A', x: (width - w)/2, y: (height - h)/2, w, h, size:220, weight:'BOLD', text:'A' });
-  };
+  document.getElementById('btnClear').onclick = () => { fields.length = 0; selectedId = null; drawOverlay(); renderFieldsList(); };
 
   // ------------ DRAW & INTERACT -------------
   function drawOverlay() {
@@ -227,7 +226,7 @@
       octx.fillStyle = '#111827';
       octx.fillText(`${f.type}:${f.name}`, f.x+4, f.y-6);
       if (f.type==='TEXT') {
-        octx.font = `${Math.min(20, f.size/4)}px sans-serif`;
+        octx.font = `${Math.min(20, Math.max(10, f.size/4))}px sans-serif`;
         octx.fillStyle = '#6b7280';
         const sample = f.text || 'Sample';
         octx.fillText(sample, f.x+6, f.y+Math.min(f.h-6, 18));
@@ -240,7 +239,7 @@
     const rect = overlay.getBoundingClientRect();
     const x = e.clientX - rect.left; const y = e.clientY - rect.top;
     selectedId = hitTest(x,y);
-    if (!selectedId) { // start drawing new
+    if (!selectedId) { // start drawing new rect
       dragging = true; startX = x; startY = y; currentRect = { x, y, w:0, h:0 };
     } else {
       // start dragging selected
@@ -259,7 +258,8 @@
       drawOverlay();
       // temp draw
       octx.save(); octx.setLineDash([6,4]); octx.strokeStyle = '#64748b';
-      octx.strokeRect(currentRect.x, currentRect.y, currentRect.w, currentRect.h);
+      const nr = normalizeRect(currentRect);
+      octx.strokeRect(nr.x, nr.y, nr.w, nr.h);
       octx.restore();
     } else if (selectedId) {
       const f = fields.find(f=>f.id===selectedId);
@@ -269,7 +269,7 @@
     }
   });
 
-  overlay.addEventListener('mouseup', (e) => {
+  overlay.addEventListener('mouseup', () => {
     if (currentRect) {
       const r = normalizeRect(currentRect);
       addField({ x:r.x, y:r.y, w:r.w, h:r.h });
@@ -300,37 +300,37 @@
       const div = document.createElement('div');
       div.className = 'border rounded-xl p-3 hover:shadow transition';
       div.innerHTML = `
-        <div class=\"flex justify-between items-center\">
-          <div class=\"font-mono text-sm\"><b>${f.type}</b> — ${f.name}</div>
-          <div class=\"flex gap-2\">
-            <button data-act=\"sel\" class=\"text-xs px-2 py-1 rounded bg-slate-200\">Select</button>
-            <button data-act=\"del\" class=\"text-xs px-2 py-1 rounded bg-rose-600 text-white\">Delete</button>
+        <div class="flex justify-between items-center">
+          <div class="font-mono text-sm"><b>${f.type}</b> — ${f.name}</div>
+          <div class="flex gap-2">
+            <button data-act="sel" class="text-xs px-2 py-1 rounded bg-slate-200">Select</button>
+            <button data-act="del" class="text-xs px-2 py-1 rounded bg-rose-600 text-white">Delete</button>
           </div>
         </div>
-        <div class=\"grid grid-cols-2 md:grid-cols-7 gap-2 mt-2 text-xs\">
-          <label class=\"flex flex-col\">Name<input data-k=\"name\" value=\"${f.name}\" class=\"border rounded p-1\"></label>
-          <label class=\"flex flex-col\">Type
-            <select data-k=\"type\" class=\"border rounded p-1\">
+        <div class="grid grid-cols-2 md:grid-cols-7 gap-2 mt-2 text-xs">
+          <label class="flex flex-col">Name<input data-k="name" value="${f.name}" class="border rounded p-1"></label>
+          <label class="flex flex-col">Type
+            <select data-k="type" class="border rounded p-1">
               <option ${f.type==='TEXT'?'selected':''}>TEXT</option>
               <option ${f.type==='BARCODE'?'selected':''}>BARCODE</option>
             </select>
           </label>
-          <label class=\"flex flex-col\">Code<input data-k=\"code\" value=\"${f.code||''}\" class=\"border rounded p-1\" placeholder=\"e.g. 01, 25, 85\"></label>
-          <label class=\"flex flex-col\">X<input data-k=\"x\" type=\"number\" step=\"1\" value=\"${f.x}\" class=\"border rounded p-1\"></label>
-          <label class=\"flex flex-col\">Y<input data-k=\"y\" type=\"number\" step=\"1\" value=\"${f.y}\" class=\"border rounded p-1\"></label>
-          <label class=\"flex flex-col\">W<input data-k=\"w\" type=\"number\" step=\"1\" value=\"${f.w}\" class=\"border rounded p-1\"></label>
-          <label class=\"flex flex-col\">H<input data-k=\"h\" type=\"number\" step=\"1\" value=\"${f.h}\" class=\"border rounded p-1\"></label>
+          <label class="flex flex-col">Code<input data-k="code" value="${f.code||''}" class="border rounded p-1" placeholder="e.g. 01, 25, 85"></label>
+          <label class="flex flex-col">X<input data-k="x" type="number" step="1" value="${f.x}" class="border rounded p-1"></label>
+          <label class="flex flex-col">Y<input data-k="y" type="number" step="1" value="${f.y}" class="border rounded p-1"></label>
+          <label class="flex flex-col">W<input data-k="w" type="number" step="1" value="${f.w}" class="border rounded p-1"></label>
+          <label class="flex flex-col">H<input data-k="h" type="number" step="1" value="${f.h}" class="border rounded p-1"></label>
         </div>
-        <div class=\"grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-xs\">
-          <label class=\"flex flex-col\">Font<input data-k=\"font\" value=\"${f.font}\" class=\"border rounded p-1\"></label>
-          <label class=\"flex flex-col\">Size<input data-k=\"size\" type=\"number\" step=\"1\" value=\"${f.size}\" class=\"border rounded p-1\"></label>
-          <label class=\"flex flex-col\">Weight
-            <select data-k=\"weight\" class=\"border rounded p-1\">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-xs">
+          <label class="flex flex-col">Font<input data-k="font" value="${f.font}" class="border rounded p-1"></label>
+          <label class="flex flex-col">Size<input data-k="size" type="number" step="1" value="${f.size}" class="border rounded p-1"></label>
+          <label class="flex flex-col">Weight
+            <select data-k="weight" class="border rounded p-1">
               <option ${f.weight==='NORMAL'?'selected':''}>NORMAL</option>
               <option ${f.weight==='BOLD'?'selected':''}>BOLD</option>
             </select>
           </label>
-          <label class=\"flex flex-col\">Sample Text<input data-k=\"text\" value=\"${f.text || ''}\" class=\"border rounded p-1\" placeholder=\"Preview text for this field\"></label>
+          <label class="flex flex-col">Sample Text<input data-k="text" value="${f.text || ''}" class="border rounded p-1" placeholder="Preview text for this field"></label>
         </div>
       `;
       div.querySelectorAll('input,select').forEach(inp => {
@@ -359,34 +359,21 @@
   function exportPectab(){
     const dpi = Number(document.getElementById('dpi').value);
     const units = document.getElementById('units').value;
-    const mediaW = Number(document.getElementById('mediaW').value || 0);
-    const mediaH = Number(document.getElementById('mediaH').value || 0);
+    let mediaW = Number(document.getElementById('mediaW').value || 0);
+    let mediaH = Number(document.getElementById('mediaH').value || 0);
     const margin = Number(document.getElementById('margin').value || 0);
     const pid = document.getElementById('pectabId').value || 'BP_STD_V1';
 
-    // Fallback defaults if not provided
-if (!mediaW) {
-  if (units==='mm') {
-    mediaW = 83;
-  } else {
-    mediaW = 3.25;
-  }
-}
-if (!mediaH) {
-  if (units==='mm') {
-    mediaH = 203;
-  } else {
-    mediaH = 8;
-  }
-}
+    // sensible defaults
+    if (!mediaW) mediaW = (units==='mm') ? 83 : 3.25;
+    if (!mediaH) mediaH = (units==='mm') ? 203 : 8;
 
     const widthDots = toDots(mediaW, units, dpi);
     const heightDots = toDots(mediaH, units, dpi);
 
-    // Map overlay coordinates (pixels) to printer dots using proportional mapping
-    // x_dots = (x / overlay.width) * widthDots
-    function pxToDotsX(px){ return Math.round((px / overlay.width) * widthDots); }
-    function pxToDotsY(px){ return Math.round((px / overlay.height) * heightDots); }
+    // proportional mapping canvas→dots
+    const pxToDotsX = (px) => Math.round((px / overlay.width) * widthDots);
+    const pxToDotsY = (px) => Math.round((px / overlay.height) * heightDots);
 
     let out = '';
     out += `; ---- PECTAB Skeleton (generated) ----\n`;
@@ -410,10 +397,8 @@ if (!mediaH) {
   }
 
   document.getElementById('btnExport').onclick = exportPectab;
-  document.getElementById('btnExportAEA').onclick = exportAEA;
-  document.getElementById('btnExportCombined').onclick = exportCombined;
+
   function exportAEA(){
-    // Build AEA/TPS data string using configured header, separator and terminator.
     const header = document.getElementById('header').value || '';
     const sep = document.getElementById('separator').value || '#';
     const term = document.getElementById('terminator').value || '$';
@@ -426,13 +411,15 @@ if (!mediaH) {
     });
     document.getElementById('outputAEA').value = s + term;
   }
+  document.getElementById('btnExportAEA').onclick = exportAEA;
 
   function exportCombined(){
-    const tpl = document.getElementById('template').value || '';
-    const data = document.getElementById('outputAEA').value || '';
-    const out = [tpl.trim(), data.trim()].filter(Boolean).join('\n\n');
+    const tpl = (document.getElementById('templateOneLine').value || '').trim();
+    const data = (document.getElementById('outputAEA').value || '').trim();
+    const out = [tpl, data].filter(Boolean).join('\n\n');
     document.getElementById('outputCombined').value = out;
   }
+  document.getElementById('btnExportCombined').onclick = exportCombined;
 </script>
 </body>
 </html>
