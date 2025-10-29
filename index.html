@@ -79,24 +79,30 @@
 
         <div class="grid grid-cols-2 gap-2">
           <div>
+            <label class="block text-sm font-semibold">Mode</label>
+            <select id="mode" class="w-full border rounded-lg p-2">
+              <option value="ATB" selected>ATB (boarding pass)</option>
+              <option value="BTP">BTP (bag tag)</option>
+            </select>
+          </div>
+          <div>
             <label class="block text-sm font-semibold">Header</label>
-            <input id="header" type="text" class="w-full border rounded-lg p-2" placeholder="BTP010101 or 3CP#1C01" value="BTP010101" />
+            <input id="header" type="text" class="w-full border rounded-lg p-2" placeholder="BTP010101 or 3CP#1C01" value="3CP#1C01" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-sm font-semibold">Terminator</label>
+            <input id="terminator" type="text" class="w-full border rounded-lg p-2" placeholder="$ or #$" value="$" />
           </div>
           <div>
             <label class="block text-sm font-semibold">Separator</label>
             <input id="separator" type="text" class="w-full border rounded-lg p-2" placeholder="#" value="#" />
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block text-sm font-semibold">Terminator</label>
-            <input id="terminator" type="text" class="w-full border rounded-lg p-2" placeholder="$" value="$" />
-          </div>
-          <div>
-            <label class="block text-sm font-semibold">(Optional) PECTAB Template</label>
-            <input id="templateOneLine" type="text" class="w-full border rounded-lg p-2 font-mono text-xs" placeholder="Paste AD;... here to include with Combined" />
-          </div>
-        </div>
+
+        <label class="block text-sm font-semibold">(Optional) PECTAB Template</label>
+        <input id="templateOneLine" type="text" class="w-full border rounded-lg p-2 font-mono text-xs" placeholder="Paste AD;... here to include with Combined" />
 
         <button id="btnExportAEA" class="w-full px-3 py-2 rounded-xl bg-indigo-600 text-white shadow">Export AEA/TPS Data</button>
         <textarea id="outputAEA" rows="8" class="w-full border rounded-xl p-2 font-mono text-xs" placeholder="BTP010101#... or 3CP#1C01#... will appear here (uses field Codes + Sample Text values)"></textarea>
@@ -420,6 +426,26 @@
     document.getElementById('outputCombined').value = out;
   }
   document.getElementById('btnExportCombined').onclick = exportCombined;
+  function applyMode(mode, force=false){
+    const presets = {
+      ATB: { units:'mm', dpi:203, mediaW:83, mediaH:203, header:'3CP#1C01', sep:'#', term:'#$' },
+      BTP: { units:'mm', dpi:203, mediaW:54, mediaH:152, header:'BTP010101', sep:'#', term:'$' }
+    };
+    const p = presets[mode] || presets.ATB;
+    // helper to set if empty or forcing
+    const setIf = (el, val) => { if (force || !el.value) el.value = String(val); };
+    setIf(document.getElementById('units'), p.units);
+    setIf(document.getElementById('dpi'), p.dpi);
+    setIf(document.getElementById('mediaW'), p.mediaW);
+    setIf(document.getElementById('mediaH'), p.mediaH);
+    setIf(document.getElementById('header'), p.header);
+    setIf(document.getElementById('separator'), p.sep);
+    setIf(document.getElementById('terminator'), p.term);
+  }
+
+  // initialize presets for default ATB
+  applyMode('ATB', true);
+  document.getElementById('mode').addEventListener('change', (e)=> applyMode(e.target.value, true));
 </script>
 </body>
 </html>
