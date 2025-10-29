@@ -2,183 +2,157 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Base64 → PECTAB Generator</title>
+  <title>PDF (Base64) → PECTAB (ATB/BTP)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root { font-family: system-ui, Arial, sans-serif; }
-    body { margin: 24px; }
+    :root { --bg:#0b1020; --fg:#e7eeff; --muted:#67718a; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
     h1 { margin: 0 0 8px; }
-    .grid { display: grid; gap: 16px; grid-template-columns: 1fr; max-width: 1100px; }
-    textarea, input, select, button { width: 100%; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    textarea { min-height: 160px; }
+    .grid { display: grid; gap: 16px; grid-template-columns: 1fr; max-width: 1200px; }
     .row { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,.05); }
-    .muted { color: #666; }
-    pre { background: #0b1020; color: #e7eeff; padding: 12px; border-radius: 8px; overflow: auto; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+    .muted { color: #555; }
+    textarea, input, select, button { width: 100%; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    textarea { min-height: 140px; }
+    pre { background: var(--bg); color: var(--fg); padding: 12px; border-radius: 8px; overflow: auto; }
     .small { font-size: 12px; }
-    .btn { cursor: pointer; border: 1px solid #333; border-radius: 8px; background: #111; color: #fff; }
+    .btn { cursor: pointer; border: 1px solid #111; border-radius: 8px; background: #111; color: #fff; padding: 10px 12px; }
     .btn.secondary { background: #fff; color: #111; }
-    .flex { display: flex; gap: 8px; align-items: center; }
-    .nowrap { white-space: nowrap; }
+    .flex { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .preview-wrap { display: grid; gap: 12px; grid-template-columns: 320px 1fr; align-items: start; }
+    canvas { max-width: 100%; border: 1px dashed #ddd; border-radius: 10px; background: #fafafa; }
+    label .hint { color: var(--muted); font-weight: normal; }
   </style>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";</script>
+  <!-- ZXing (barcode) -->
+  <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.2"></script>
 </head>
 <body>
-  <h1>Base64 → PECTAB Generator</h1>
-  <p class="muted small">
-    Paste a Base64 payload, decode, and generate a PECTAB-like template.
-    <span class="nowrap">Adjust fields below if needed.</span>
-  </p>
+  <h1>PDF (Base64) → PECTAB</h1>
+  <p class="muted small">Drop your <b>PDF as Base64</b> below. This tool parses text + tries to decode barcodes. Adjust positions and export a generic PECTAB.</p>
 
   <div class="grid">
+    <!-- INPUT -->
     <div class="card">
-      <h3>1) Paste Base64 input</h3>
-      <textarea id="b64Input" placeholder="Paste your Base64 string here..."></textarea>
+      <h3>1) Paste Base64 PDF</h3>
+      <textarea id="b64Input" placeholder="Paste Base64 (raw or data:application/pdf;base64,...)"></textarea>
+      <div class="kv">
+        <div>
+          <label>Printer DPI <span class="hint">(dots per inch; typical ATB = 203)</span></label>
+          <input id="dpi" type="number" value="203" />
+        </div>
+        <div>
+          <label>Max pages to scan <span class="hint">(for big PDFs)</span></label>
+          <input id="maxPages" type="number" value="5" />
+        </div>
+      </div>
       <div class="flex">
-        <button id="decodeBtn" class="btn">Decode</button>
+        <button id="parseBtn" class="btn">Parse PDF</button>
         <button id="clearBtn" class="btn secondary">Clear</button>
       </div>
-      <p class="small muted">Tip: The decoded data can be JSON (recommended, see schema), or free text with an embedded data URI (data:image/...;base64,...).</p>
+      <p class="small muted">If your string is a data URL, that’s fine. Otherwise paste the raw Base64; we’ll normalize it.</p>
     </div>
 
+    <!-- PREVIEW + FIELDS -->
     <div class="row">
       <div class="card">
-        <h3>2) Decoded payload (preview)</h3>
-        <textarea id="decoded" placeholder="Decoded content appears here..." readonly></textarea>
+        <h3>2) Page Preview & Barcode Scan</h3>
+        <div class="preview-wrap">
+          <div>
+            <canvas id="preview"></canvas>
+            <div class="flex" style="margin-top:8px">
+              <label>Page <input id="pageNum" type="number" value="1" style="width:80px" /></label>
+              <button id="renderBtn" class="btn secondary">Render Page</button>
+            </div>
+          </div>
+          <div>
+            <label class="small muted">Detected Barcodes (data)</label>
+            <textarea id="barcodes" placeholder="Decoded barcode payloads (one per line)"></textarea>
+            <div class="kv">
+              <div><label>Barcode symbology</label>
+                <select id="barcodeSym">
+                  <option>PDF417</option><option>QR</option><option>DATAMATRIX</option><option>AZTEC</option>
+                </select>
+              </div>
+              <div><label>Module width (dots)</label><input id="barcodeMod" type="number" value="2" /></div>
+              <div><label>Barcode X (dots)</label><input id="barcodeX" type="number" value="20" /></div>
+              <div><label>Barcode Y (dots)</label><input id="barcodeY" type="number" value="200" /></div>
+            </div>
+            <p class="small muted">We can’t reliably get the barcode’s position from the image; set X/Y as needed.</p>
+          </div>
+        </div>
       </div>
+
       <div class="card">
-        <h3>3) Parsed fields (editable)</h3>
-        <label class="small muted">Text blocks (JSON)</label>
+        <h3>3) Extracted Text → Editable Fields</h3>
+        <label class="small muted">Text blocks (dots; edit freely). Each item: { x, y, size, font, text }</label>
         <textarea id="textBlocks"></textarea>
-
-        <div class="row">
-          <div>
-            <label class="small muted">Barcode symbology</label>
-            <select id="barcodeSym">
-              <option>PDF417</option>
-              <option>QR</option>
-              <option>DATAMATRIX</option>
-              <option>AZTEC</option>
-            </select>
-          </div>
-          <div>
-            <label class="small muted">Barcode module width (dots)</label>
-            <input id="barcodeModule" type="number" value="2" />
-          </div>
-        </div>
-
-        <div class="row">
-          <div>
-            <label class="small muted">Barcode X</label>
-            <input id="barcodeX" type="number" value="10" />
-          </div>
-          <div>
-            <label class="small muted">Barcode Y</label>
-            <input id="barcodeY" type="number" value="60" />
-          </div>
-        </div>
-
-        <label class="small muted">Barcode data</label>
-        <textarea id="barcodeData"></textarea>
-
         <div class="flex">
-          <label class="small muted"><input type="checkbox" id="barcodeIsB64" /> barcodeData is Base64</label>
+          <button id="autoLayoutBtn" class="btn secondary">Auto (merge lines)</button>
+          <span class="small muted">If words looked too granular, try “Auto”.</span>
         </div>
       </div>
     </div>
 
+    <!-- PECTAB -->
     <div class="card">
-      <h3>4) Generated PECTAB (editable/exportable)</h3>
+      <h3>4) Generated PECTAB</h3>
       <pre id="pectabOut"></pre>
       <div class="flex">
-        <button id="genBtn" class="btn">Generate / Refresh</button>
+        <button id="genBtn" class="btn">Generate</button>
         <button id="downloadBtn" class="btn secondary">Download .pectab</button>
       </div>
-      <p class="small muted">
-        This is a generic PECTAB-style output: coordinates & fields with a simple barcode command. You’ll likely need to align
-        the keywords to your host/printer’s PECTAB dialect (vendor docs). For boarding-pass/ATB contexts, PECTAB defines *where* text & barcodes render. :contentReference[oaicite:1]{index=1}
-      </p>
+      <p class="small muted">Generic PECTAB-style output (PAGE/TEXT/BARCODE). Adjust keywords to your device’s dialect.</p>
     </div>
   </div>
 
   <script>
-    // --- Utilities ---
-    function decodeBase64Unicode(b64) {
-      // Handle URL-safe variants and whitespace
-      const norm = b64.replace(/[\r\n\s]/g, '').replace(/-/g, '+').replace(/_/g, '/');
-      const bin = atob(norm);
-      // Convert binary string to UTF-8 string
-      const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-      const dec = new TextDecoder('utf-8', { fatal: false });
-      return dec.decode(bytes);
+    // ---------------- Utilities ----------------
+    const $ = s => document.querySelector(s);
+
+    function b64ToUint8Array(b64) {
+      const clean = b64.replace(/^data:application\\/pdf;base64,/, '').replace(/\\s+/g,'').replace(/-/g,'+').replace(/_/g,'/');
+      const str = atob(clean);
+      const bytes = new Uint8Array(str.length);
+      for (let i=0;i<str.length;i++) bytes[i] = str.charCodeAt(i);
+      return bytes;
     }
 
-    function tryParseJSON(s) {
-      try { return JSON.parse(s); } catch { return null; }
+    function pointsToDots(vPoints, dpi) {
+      // 1 point = 1/72 inch; dots = inches * dpi = (points/72) * dpi
+      return Math.round((vPoints / 72) * dpi);
     }
 
-    function extractImageDataURI(s) {
-      const m = s.match(/data:image\\/(?:png|gif|jpeg|jpg|bmp|webp);base64,([A-Za-z0-9+/=]+)/i);
-      return m ? m[1] : null;
-    }
-
-    function defaultTextBlocksFromPlainText(s) {
-      const lines = s.split(/\\r?\\n/).map(t => t.trim()).filter(Boolean);
-      const blocks = [];
-      let y = 10;
-      for (const line of lines) {
-        blocks.push({ x: 10, y, font: "A", size: 10, text: line });
-        y += 12;
-      }
-      return blocks;
-    }
-
-    // --- Build a "generic" PECTAB string ---
-    // This is a simplified, human-readable template reflecting the parametric idea:
-    //  - HEADER, PAGE size
-    //  - TEXT fields with X/Y, FONT/SIZE
-    //  - BARCODE with SYMBOLOGY and payload
-    // Adapt these keywords to your printer's PECTAB dialect.
-    function buildPectab({ page = { width: 203, height: 127 }, textBlocks = [], barcode = null }) {
+    function buildPectab({ pageDots, textBlocks, barcodes, sym="PDF417", module=2, bx=20, by=200 }) {
       const lines = [];
       lines.push("; ---- GENERIC PECTAB START ----");
-      lines.push(`PAGE WIDTH=${page.width} HEIGHT=${page.height}  ; units: dots`);
+      lines.push(`PAGE WIDTH=${pageDots.width} HEIGHT=${pageDots.height}  ; units: dots`);
       lines.push("");
 
-      // Text fields
-      textBlocks.forEach((t, i) => {
-        const font = t.font || "A";
+      (textBlocks || []).forEach((t, i) => {
+        const x = Math.max(0, Math.round(t.x || 0));
+        const y = Math.max(0, Math.round(t.y || 0));
         const size = t.size || 10;
-        const x = t.x ?? 10;
-        const y = t.y ?? (10 + i * 12);
-        const text = (t.text ?? "").replace(/\\r?\\n/g, " ");
-        lines.push(`TEXT X=${x} Y=${y} FONT=${font} SIZE=${size} : ${text}`);
+        const font = t.font || "A";
+        const tx = (t.text || "").replace(/\\r?\\n/g, " ");
+        lines.push(`TEXT X=${x} Y=${y} FONT=${font} SIZE=${size} : ${tx}`);
       });
 
       lines.push("");
 
-      if (barcode && barcode.data) {
-        const sym = (barcode.symbology || "PDF417").toUpperCase();
-        const x = barcode.x ?? 10;
-        const y = barcode.y ?? 60;
-        const mod = barcode.moduleWidth ?? 2;
-        const rowH = barcode.rowHeight ?? 6;
-
-        // If barcode data provided as Base64 (of bytes), decode to text safely.
-        let payload = barcode.data;
-        if (barcode.isBase64) {
-          try {
-            payload = decodeBase64Unicode(barcode.data);
-          } catch {
-            // keep original if decode fails
-            payload = barcode.data;
-          }
+      if (barcodes && barcodes.length) {
+        const symb = (sym||"PDF417").toUpperCase();
+        for (const data of barcodes) {
+          const payload = (data||"").trim();
+          if (!payload) continue;
+          lines.push(`BARCODE SYMBOLOGY=${symb} X=${Math.round(bx)} Y=${Math.round(by)} MODULE=${module} ROWH=6`);
+          lines.push(`BARCODE-DATA: ${payload}`);
         }
-
-        // Many PECTAB implementations expect the raw data string (e.g., BCBP)
-        lines.push(`BARCODE SYMBOLOGY=${sym} X=${x} Y=${y} MODULE=${mod} ROWH=${rowH}`);
-        lines.push(`BARCODE-DATA: ${payload}`);
       } else {
-        lines.push("; (No barcode provided)");
+        lines.push("; (No barcode detected / provided)");
       }
 
       lines.push("");
@@ -186,124 +160,194 @@
       return lines.join("\\n");
     }
 
-    // --- Wiring UI ---
-    const $ = sel => document.querySelector(sel);
-    const $$ = sel => Array.from(document.querySelectorAll(sel));
+    function mergeWordsIntoLines(items, tolerance=6) {
+      // items: [{x,y,size,font,text}] in dots
+      // Merge by similar Y within tolerance, order by X
+      const rows = [];
+      for (const it of items) {
+        let row = rows.find(r => Math.abs(r.y - it.y) <= tolerance);
+        if (!row) { row = { y: it.y, items: [] }; rows.push(row); }
+        row.items.push(it);
+      }
+      rows.sort((a,b)=>a.y-b.y);
+      const merged = [];
+      for (const r of rows) {
+        r.items.sort((a,b)=>a.x-b.x);
+        const x = r.items[0].x;
+        const y = Math.round(r.y);
+        const size = Math.round(r.items.reduce((s,i)=>s + (i.size||10),0)/r.items.length);
+        const font = r.items[0].font || "A";
+        const text = r.items.map(i=>i.text).join(" ");
+        merged.push({ x, y, size, font, text });
+      }
+      return merged;
+    }
 
-    const elB64Input = $("#b64Input");
-    const elDecoded = $("#decoded");
-    const elTextBlocks = $("#textBlocks");
-    const elBarcodeSym = $("#barcodeSym");
-    const elBarcodeModule = $("#barcodeModule");
-    const elBarcodeX = $("#barcodeX");
-    const elBarcodeY = $("#barcodeY");
-    const elBarcodeData = $("#barcodeData");
-    const elBarcodeIsB64 = $("#barcodeIsB64");
-    const elPectabOut = $("#pectabOut");
+    // --------------- State ---------------
+    let pdf = null;
+    let pageCount = 0;
+    let pageSizesPts = {}; // {pageNum:{width,height} in points}
+    let extractedTextDots = []; // across pages
+    let decodedBarcodes = new Set();
 
+    // --------------- PDF parsing ---------------
+    async function parsePdfFromBase64() {
+      const base64 = $("#b64Input").value.trim();
+      if (!base64) { alert("Paste Base64 first."); return; }
+      const dpi = Number($("#dpi").value)||203;
+      const maxPages = Math.max(1, Number($("#maxPages").value)||5);
+
+      // Reset state
+      pdf = null; pageCount = 0; pageSizesPts = {};
+      extractedTextDots = []; decodedBarcodes = new Set();
+      $("#textBlocks").value = "";
+      $("#barcodes").value = "";
+      $("#pectabOut").textContent = "";
+      $("#preview").getContext("2d").clearRect(0,0,$("#preview").width,$("#preview").height);
+
+      const bytes = b64ToUint8Array(base64);
+      pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+      pageCount = pdf.numPages;
+
+      const toScan = Math.min(pageCount, maxPages);
+
+      for (let p=1; p<=toScan; p++) {
+        const page = await pdf.getPage(p);
+        const viewport = page.getViewport({ scale: 1.0 });
+        pageSizesPts[p] = { width: viewport.viewBox[2], height: viewport.viewBox[3] };
+
+        // Extract text
+        const txt = await page.getTextContent();
+        // Each item has transform [a,b,c,d,e,f] and width, height, str
+        // We’ll use e,f as baseline position (in points), convert to dots; flip Y (PDF origin bottom-left)
+        const hPts = viewport.viewBox[3];
+        for (const it of txt.items) {
+          const m = it.transform; // [a, b, c, d, e, f]
+          const xPts = m[4];
+          const yPtsBaseline = m[5];
+          const yPtsTop = hPts - yPtsBaseline; // approximate flip
+          const sizePts = Math.hypot(m[0], m[1]); // font size approx
+
+          const x = pointsToDots(xPts, dpi);
+          const y = pointsToDots(yPtsTop, dpi);
+          const size = Math.max(8, Math.round(pointsToDots(sizePts, dpi) / 1.5)); // heuristic to printer font size
+          extractedTextDots.push({ page:p, x, y, size, font:"A", text: it.str });
+        }
+
+        // Render to canvas and try barcode
+        await renderPageToCanvas(p, 2.0); // scale 2 for better decode
+        await tryDecodeBarcodeFromCanvas();
+      }
+
+      // Seed UI with merged lines from all parsed pages (sorted by page then y)
+      const merged = mergeWordsIntoLines(extractedTextDots, 6).sort((a,b)=>a.y-b.y);
+      $("#textBlocks").value = JSON.stringify(merged, null, 2);
+      $("#barcodes").value = Array.from(decodedBarcodes).join("\\n");
+      $("#pageNum").value = 1;
+    }
+
+    async function renderPageToCanvas(pageNumber, scale=1.5) {
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale });
+      const canvas = $("#preview");
+      const ctx = canvas.getContext("2d");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      await page.render({ canvasContext: ctx, viewport }).promise;
+    }
+
+    async function tryDecodeBarcodeFromCanvas() {
+      const canvas = $("#preview");
+      if (!canvas.width || !canvas.height) return;
+      const url = canvas.toDataURL("image/png");
+      const hints = new Map();
+      const formats = [
+        ZXing.BarcodeFormat.PDF_417,
+        ZXing.BarcodeFormat.QR_CODE,
+        ZXing.BarcodeFormat.DATA_MATRIX,
+        ZXing.BarcodeFormat.AZTEC
+      ];
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+
+      const reader = new ZXing.BrowserMultiFormatReader(hints);
+      try {
+        const res = await reader.decodeFromImageUrl(url);
+        if (res && res.text) decodedBarcodes.add(res.text);
+      } catch {
+        // no barcode detected on this render – ignore
+      }
+      reader.reset();
+    }
+
+    // --------------- Wiring ---------------
     $("#clearBtn").addEventListener("click", () => {
-      elB64Input.value = "";
-      elDecoded.value = "";
-      elTextBlocks.value = "";
-      elBarcodeData.value = "";
-      elPectabOut.textContent = "";
+      $("#b64Input").value = "";
+      $("#dpi").value = 203;
+      $("#maxPages").value = 5;
+      $("#textBlocks").value = "";
+      $("#barcodes").value = "";
+      $("#pectabOut").textContent = "";
+      const c = $("#preview");
+      c.getContext("2d").clearRect(0,0,c.width,c.height);
+      pdf = null; pageCount = 0; extractedTextDots = []; decodedBarcodes = new Set();
     });
 
-    $("#decodeBtn").addEventListener("click", () => {
-      const raw = elB64Input.value.trim();
-      if (!raw) return;
-      let decoded = "";
+    $("#parseBtn").addEventListener("click", () => { parsePdfFromBase64(); });
+
+    $("#renderBtn").addEventListener("click", async () => {
+      if (!pdf) return;
+      const n = Math.min(Math.max(1, Number($("#pageNum").value)||1), pdf.numPages);
+      await renderPageToCanvas(n, 2.0);
+      await tryDecodeBarcodeFromCanvas();
+      $("#barcodes").value = Array.from(decodedBarcodes).join("\\n");
+    });
+
+    $("#autoLayoutBtn").addEventListener("click", () => {
       try {
-        decoded = decodeBase64Unicode(raw);
-      } catch (e) {
-        alert("Invalid Base64 input.");
-        return;
-      }
-      elDecoded.value = decoded;
-
-      // Try JSON first
-      const obj = tryParseJSON(decoded);
-      if (obj && typeof obj === "object") {
-        // Populate textBlocks
-        const tb = Array.isArray(obj.textBlocks) ? obj.textBlocks : [];
-        elTextBlocks.value = JSON.stringify(tb, null, 2);
-
-        // Barcode
-        if (obj.barcode && (obj.barcode.data || obj.barcode.payload)) {
-          const b = obj.barcode;
-          elBarcodeSym.value = (b.symbology || "PDF417").toUpperCase();
-          elBarcodeModule.value = (b.moduleWidth ?? 2);
-          elBarcodeX.value = (b.x ?? 10);
-          elBarcodeY.value = (b.y ?? 60);
-          elBarcodeData.value = (b.data || b.payload || "");
-          elBarcodeIsB64.checked = !!obj.barcodeDataIsBase64 || !!b.isBase64;
-        } else {
-          // check if there's an inline data URI in any string
-          const maybeImgB64 = extractImageDataURI(decoded);
-          elBarcodeData.value = maybeImgB64 ? maybeImgB64 : "";
-          elBarcodeIsB64.checked = !!maybeImgB64;
-        }
-
-        if (!tb.length) {
-          // fallback: derive text blocks from any known plain fields, else from the whole text
-          elTextBlocks.value = JSON.stringify(defaultTextBlocksFromPlainText(decoded), null, 2);
-        }
-      } else {
-        // Non-JSON payload: try to split text & image
-        const maybeImgB64 = extractImageDataURI(decoded);
-        const textOnly = maybeImgB64 ? decoded.replace(/data:image\\/(?:png|gif|jpeg|jpg|bmp|webp);base64,[A-Za-z0-9+/=]+/i, "").trim() : decoded;
-
-        elTextBlocks.value = JSON.stringify(defaultTextBlocksFromPlainText(textOnly), null, 2);
-        elBarcodeData.value = maybeImgB64 ? maybeImgB64 : "";
-        elBarcodeIsB64.checked = !!maybeImgB64;
+        const arr = JSON.parse($("#textBlocks").value||"[]");
+        const merged = mergeWordsIntoLines(arr, 6);
+        $("#textBlocks").value = JSON.stringify(merged, null, 2);
+      } catch {
+        alert("Invalid JSON in Text blocks.");
       }
     });
 
     $("#genBtn").addEventListener("click", () => {
-      let tb = [];
-      try { tb = JSON.parse(elTextBlocks.value || "[]"); } catch { tb = []; }
+      const dpi = Number($("#dpi").value)||203;
+      // Use first page size to compute PAGE width/height (dots). If multiple pages, take page 1.
+      const page1 = pageSizesPts[1] || { width: 612, height: 360 }; // default ~ 8.5x5"
+      const pageDots = {
+        width: pointsToDots(page1.width, dpi),
+        height: pointsToDots(page1.height, dpi)
+      };
+      let tBlocks = [];
+      try { tBlocks = JSON.parse($("#textBlocks").value||"[]"); } catch { tBlocks = []; }
+      const barcodes = ($("#barcodes").value||"").split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
       const pectab = buildPectab({
-        textBlocks: tb,
-        barcode: {
-          symbology: elBarcodeSym.value,
-          moduleWidth: Number(elBarcodeModule.value) || 2,
-          rowHeight: 6,
-          x: Number(elBarcodeX.value) || 10,
-          y: Number(elBarcodeY.value) || 60,
-          data: elBarcodeData.value.trim(),
-          isBase64: elBarcodeIsB64.checked
-        }
+        pageDots,
+        textBlocks: tBlocks,
+        barcodes,
+        sym: $("#barcodeSym").value,
+        module: Number($("#barcodeMod").value)||2,
+        bx: Number($("#barcodeX").value)||20,
+        by: Number($("#barcodeY").value)||200
       });
-      elPectabOut.textContent = pectab;
+      $("#pectabOut").textContent = pectab;
     });
 
     $("#downloadBtn").addEventListener("click", () => {
-      const blob = new Blob([elPectabOut.textContent || ""], { type: "text/plain" });
+      const blob = new Blob([$("#pectabOut").textContent||""], { type: "text/plain" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "output.pectab";
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
     });
 
-    // Seed an example for convenience
-    elB64Input.value = btoa(JSON.stringify({
-      textBlocks: [
-        { x: 10, y: 20, font: "A", size: 10, text: "Passenger: Ada Lovelace" },
-        { x: 10, y: 34, font: "A", size: 10, text: "Flight: AB123 2025-11-01" },
-        { x: 10, y: 48, font: "A", size: 10, text: "Seat: 12C   Gate: C5" }
-      ],
-      barcode: {
-        symbology: "PDF417",
-        moduleWidth: 2,
-        rowHeight: 6,
-        x: 10, y: 70,
-        data: "M1LOVELACE/ADA  AB123XYZ SINLHR 0123 12C 20251101" // sample BCBP-like string
-      },
-      barcodeDataIsBase64: false
-    }, null, 2));
+    // --------------- Example seed (optional) ---------------
+    // Minimal single-page blank PDF (Base64) would be too long; leaving empty by default.
   </script>
 </body>
 </html>
