@@ -277,8 +277,14 @@
       const item = document.createElement('div');
       item.className='item';
       const xywh = `${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}×${Math.round(b.h)}`;
-      item.innerHTML = `<div><div><strong>${b.name||'(unnamed)'}</strong> <span class="tag">${b.type}</span></div><small>${xywh} px @ current zoom</small></div><button class="ghost">Edit</button>`;
-      item.querySelector('button').onclick = async()=>{ await promptBoxMeta(b); drawBoxes(); refreshElemList(); };
+      item.innerHTML = `<div style=\"flex:1\"><div><strong>${b.name||'(unnamed)'}<\/strong> <span class=\"tag\">${b.type}<\/span><\/div><small>${xywh} px @ current zoom<\/small><\/div>
+        <div style=\"display:flex;gap:8px;align-items:center\">
+          <input class=\"textlike\" placeholder=\"content…\" value=\"${b.content?String(b.content).replace(/\/g,'\\').replace(/\"/g,'&quot;'):''}\" style=\"width:220px\" />
+          <button class=\"ghost\">Edit<\/button>
+        <\/div>`;
+      const [contentInput, editBtn] = item.querySelectorAll('input,button');
+      if (contentInput) contentInput.oninput = (ev)=>{ b.content = ev.target.value; };
+      editBtn.onclick = async()=>{ await promptBoxMeta(b); drawBoxes(); refreshElemList(); };
       elemList.appendChild(item);
     });
   }
@@ -421,6 +427,14 @@ try {
     let values = {};
     try {
       values = JSON.parse((document.getElementById('dataJson')?.value)||'{}');
+    // Per-element content overrides (acts as local data input)
+    boxes.forEach(b=>{
+      const key = (b.name||'').toUpperCase();
+      if(!key) return;
+      if(b.content!=null && String(b.content).length>0){
+        values[key] = String(b.content);
+      }
+    });
     } catch (e) {
       alert('Invalid JSON in the Data box.'); return;
     }
