@@ -378,27 +378,50 @@
     const heightDots = toDots(mediaH, units, dpi);
 
     // proportional mapping canvas→dots
-    const pxToDotsX = (px) => Math.round((px / overlay.width) * widthDots);
-    const pxToDotsY = (px) => Math.round((px / overlay.height) * heightDots);
+    const pxToDotsX = (px) => Math.round((px / overlay.width) * widthDots) + margin;
+    const pxToDotsY = (px) => Math.round((px / overlay.height) * heightDots) + margin;
 
-    let out = '';
-    out += `; ---- PECTAB Skeleton (generated) ----\n`;
-    out += `PECTAB ID=${pid}\n`;
-    out += `MEDIA WIDTH=${widthDots} HEIGHT=${heightDots}\n`;
-    out += `DENSITY=${dpi}\n`;
-    out += `MARGINS TOP=${margin} LEFT=${margin} RIGHT=${margin} BOTTOM=${margin}\n\n`;
+    // ---- ACTUAL AD; PECTAB EMIT (generic) ----
+    // We'll emit a simple, vendor-agnostic PECTAB using absolute text commands (T) and PDF417 blocks (P).
+    // Adjust the command letters if your firmware expects different ones.
+    let parts = [];
+    parts.push('AD;');
+    parts.push(`ID${pid}#`);
+    // Media setup (optional; safe to include or remove)
+    parts.push(`MS${widthDots}x${heightDots}@${dpi}#`); // Media Size + density (informational)
+    parts.push(`MG${margin}${margin}${margin}${margin}#`); // Margins top/left/right/bottom
 
     fields.forEach(f => {
-      if (f.type==='TEXT') {
-        out += `FIELD NAME=${f.name} TYPE=TEXT\n`;
-        out += `PLACE FIELD=${f.name} X=${pxToDotsX(f.x)} Y=${pxToDotsY(f.y)} FONT=${f.font} SIZE=${Math.round(f.size)} WEIGHT=${f.weight} "${(f.text||' ')}"\n\n`;
-      } else if (f.type==='BARCODE') {
-        out += `FIELD NAME=${f.name} TYPE=BARCODE FORMAT=PDF417\n`;
-        out += `PLACE FIELD=${f.name} X=${pxToDotsX(f.x)} Y=${pxToDotsY(f.y)} W=${pxToDotsX(f.w)} H=${pxToDotsY(f.h)} ECLEVEL=5 ROWS=AUTO COLS=AUTO\n\n`;
+      if (f.type === 'TEXT') {
+        // Txxxx yyyy text#
+        const xd = String(pxToDotsX(f.x)).padStart(4,'0');
+        const yd = String(pxToDotsY(f.y)).padStart(4,'0');
+        const safe = (f.text||'').replace(/#/g,' ');
+        parts.push(`T${xd}${yd}${safe}#`);
+      } else if (f.type === 'BARCODE') {
+        // Pxxxx yyyy wwww hhhh pdf417#  (P = PDF417 block)
+        const xd = String(pxToDotsX(f.x)).padStart(4,'0');
+        const yd = String(pxToDotsY(f.y)).padStart(4,'0');
+        const wd = String(Math.max(1, pxToDotsX(f.w))).padStart(4,'0');
+        const hd = String(Math.max(1, pxToDotsY(f.h))).padStart(4,'0');
+        parts.push(`P${xd}${yd}${wd}${hd}PDF417#`);
       }
     });
 
-    out += `END PECTAB\n`;
+    // End marker
+    parts.push('#');
+
+    const pectab = parts.join('');
+
+    // Show both a readable header and the raw program below it
+    let out = '';
+    out += `; ---- AD; PECTAB (generated) ----
+`;
+    out += `; Media ${widthDots}×${heightDots} dots @ ${dpi}dpi, margins ${margin}
+`;
+    out += `${pectab}
+`;
+
     document.getElementById('output').value = out;
   }
 
