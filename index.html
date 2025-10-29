@@ -166,7 +166,22 @@
   fileEl.addEventListener('change', async (e)=>{
     const f = e.target.files[0];
     if(!f) return;
-    pdfBytes = await f.arrayBuffer();
+    try {
+      pdfBytes = await f.arrayBuffer();
+      pdf = await pdfjsLib.getDocument({data: pdfBytes}).promise;
+      page = await pdf.getPage(1);
+      const vp = page.getViewport({scale:1});
+      pagePtsW = vp.viewBox[2];
+      pagePtsH = vp.viewBox[3];
+      fitWidth();
+      await render();
+      boxes = [];
+      refreshElemList();
+    } catch (err) {
+      console.error('PDF load/render error:', err);
+      alert('Sorry — failed to read this PDF. Check that it\'s a single-page PDF and try again. See console for details.');
+    }
+  });
     pdf = await pdfjsLib.getDocument({data: pdfBytes}).promise;
     page = await pdf.getPage(1);
 
@@ -183,7 +198,21 @@
   });
 
   async function render(){
-    viewport = page.getViewport({scale});
+    if(!page) return;
+    try {
+      viewport = page.getViewport({scale});
+      canvas.width = Math.max(1, Math.floor(viewport.width));
+      canvas.height = Math.max(1, Math.floor(viewport.height));
+      overlay.style.width = canvas.width + 'px';
+      overlay.style.height = canvas.height + 'px';
+      const renderTask = page.render({canvasContext: ctx, viewport});
+      await renderTask.promise;
+      pageMeta.textContent = `Page: ${Math.round(pagePtsW)}×${Math.round(pagePtsH)} pt  |  Zoom: ${(scale*100).toFixed(0)}%`;
+    } catch (err) {
+      console.error('Render failed:', err);
+      alert('Render failed — see console for details.');
+    }
+  });
     canvas.width = Math.max(1, Math.floor(viewport.width));
     canvas.height = Math.max(1, Math.floor(viewport.height));
     overlay.style.width = canvas.width + 'px';
@@ -364,6 +393,45 @@
   // Background export: rasterize PDF to dots, threshold to B/W, download PNG and helper PECTAB snippet
   async function exportBG(){
     if(!page){ alert('Load a PDF first.'); return; }
+    const dpi = parseInt(dpiEl.value,10);
+    const Wdots = Math.round(pagePtsW * dpi / 72);
+    const Hdots = Math.round(pagePtsH * dpi / 72);
+
+    try {
+      // Render at 1:1 printer dots resolution
+      const scaleDots = Wdots / pagePtsW; // dots per point
+      const vp = page.getViewport({scale: scaleDots});
+      const off = document.createElement('canvas');
+      off.width = Math.max(1, Math.floor(vp.width));
+      off.height = Math.max(1, Math.floor(vp.height));
+      const octx = off.getContext('2d', { willReadFrequently: true });
+      await page.render({canvasContext: octx, viewport: vp}).promise;
+
+      // Convert to pure black & white (1-bit style)
+      const img = octx.getImageData(0,0,off.width,off.height);
+      for(let i=0;i<img.data.length;i+=4){
+        const r=img.data[i], g=img.data[i+1], b=img.data[i+2];
+        const y = 0.2126*r + 0.7152*g + 0.0722*b;
+        const v = y < 140 ? 0 : 255; // threshold ~55%
+        img.data[i]=img.data[i+1]=img.data[i+2]=v; img.data[i+3]=255;
+      }
+      octx.putImageData(img,0,0);
+
+      // Download bitmap as PNG and helper PECTAB snippet
+      off.toBlob((blob)=>{ if(blob) downloadBlob(blob, 'BG1.png'); }, 'image/png');
+
+      const helper = [
+        `; Download BG1.png to your printer as bitmap resource ID=BG1 (device-specific)`,
+        `; Then place it at origin before other elements:`,
+        `BITMAP;ID=BG1;X=0;Y=0;W=${Wdots};H=${Hdots}`
+      ].join('
+');
+      downloadBlob(new Blob([helper],{type:'text/plain'}), 'BG1.pectab-snippet.txt');
+    } catch (err) {
+      console.error('Background export failed:', err);
+      alert('Background export failed — see console for details.');
+    }
+  }
     const dpi = parseInt(dpiEl.value,10);
     const Wdots = Math.round(pagePtsW * dpi / 72);
     const Hdots = Math.round(pagePtsH * dpi / 72);
