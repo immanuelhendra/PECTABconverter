@@ -25,7 +25,7 @@
     .row>div{flex:1}
     #canvasWrap{position:relative;height:100%;display:flex;flex-direction:column}
     #pdfCanvas{flex:1;background:#0a0f18;border-bottom:1px solid #1b2332}
-    #overlay{position:absolute;inset:0;pointer-events:none}
+    #overlay{position:absolute;inset:0;pointer-events:auto;z-index:10}
     .toolbar{display:flex;gap:8px;padding:8px;border-bottom:1px solid #1b2332;background:#0e141f}
     .pill{padding:8px 10px;border:1px solid #2a3a55;border-radius:999px;background:#101826;cursor:pointer;color:var(--muted)}
     .pill.active{background:#162235;color:var(--ink);border-color:#3a5786}
@@ -34,7 +34,7 @@
     .list{display:flex;flex-direction:column;gap:8px}
     .hint{color:var(--muted);font-size:12px}
     .tag{font-size:11px;padding:2px 6px;border-radius:6px;background:#1b2a45;color:#b8d0ff;border:1px solid #2a3a55}
-    .grid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(to right, rgba(126,193,255,.06) 1px, transparent 1px),linear-gradient(to bottom, rgba(126,193,255,.06) 1px, transparent 1px);background-size:40px 40px;mix-blend:screen}
+    .grid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(to right, rgba(126,193,255,.06) 1px, transparent 1px),linear-gradient(to bottom, rgba(126,193,255,.06) 1px, transparent 1px);background-size:40px 40px;mix-blend:screen;z-index:5}
     .bbox{position:absolute;border:1px dashed #7cf;outline:9999px solid rgba(124,255,255,.05);border-radius:4px}
     .bbox .label{position:absolute;left:0;top:-18px;background:#162235;border:1px solid #2f4d79;color:#bfe9ff;font-size:11px;padding:1px 6px;border-radius:6px}
     .danger{color:var(--danger)} .success{color:#7cffc2}
