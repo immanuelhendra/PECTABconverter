@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF → PECTAB Skeleton Generator</title>
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PDF.js (CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha512-+d2N4l8a7Eo3lM3iSE8pXo4Y7e9Q3kQp0E6tJZ8l5EoYFJ0K+0M3aB0fW0wzXl7cA7b0T8c2+7b6i5r+5jzJmA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    html, body { height: 100%; }
+    canvas { image-rendering: pixelated; }
+    .handle { position:absolute; width:10px; height:10px; background:#fff; border:1px solid #000; border-radius:2px; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="max-w-7xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Controls -->
+    <section class="lg:col-span-1 bg-white rounded-2xl shadow p-4 space-y-4 sticky top-4 h-fit">
+      <h1 class="text-2xl font-bold">PDF → PECTAB Skeleton</h1>
+      <p class="text-sm text-slate-600">Load a PDF (first page), draw fields, set media and DPI, then export a PECTAB-like skeleton.</p>
+
+      <div class="space-y-2">
+        <label class="block text-sm font-semibold">1) Upload PDF</label>
+        <input id="pdfFile" type="file" accept="application/pdf" class="block w-full text-sm" />
+        <div class="text-xs text-slate-500">Only the first page is previewed for now.</div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-sm font-semibold">DPI</label>
+          <select id="dpi" class="w-full border rounded-lg p-2">
+            <option value="203">203</option>
+            <option value="300">300</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold">Units</label>
+          <select id="units" class="w-full border rounded-lg p-2">
+            <option value="mm">mm</option>
+            <option value="in">inches</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-sm font-semibold">Media Width</label>
+          <input id="mediaW" type="number" step="0.1" class="w-full border rounded-lg p-2" placeholder="83" />
+          <div class="text-xs text-slate-500">e.g. 83 mm (3.25 in)</div>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold">Media Height</label>
+          <input id="mediaH" type="number" step="0.1" class="w-full border rounded-lg p-2" placeholder="203" />
+          <div class="text-xs text-slate-500">e.g. 203 mm (8 in)</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-sm font-semibold">Margins (dots)</label>
+          <input id="margin" type="number" step="1" class="w-full border rounded-lg p-2" placeholder="20" value="20" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold">PECTAB ID</label>
+          <input id="pectabId" type="text" class="w-full border rounded-lg p-2" placeholder="BP_STD_V1" value="BP_STD_V1" />
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <button id="btnAddText" class="px-3 py-2 rounded-xl bg-slate-900 text-white shadow">Add TEXT field</button>
+        <button id="btnAddBarcode" class="px-3 py-2 rounded-xl bg-slate-900 text-white shadow">Add BARCODE field</button>
+        <button id="btnAddGiantA" class="px-3 py-2 rounded-xl bg-indigo-600 text-white shadow">Add Giant "A"</button>
+        <button id="btnClear" class="px-3 py-2 rounded-xl bg-rose-600 text-white shadow">Clear fields</button>
+      </div>
+
+      <div class="space-y-2">
+        <button id="btnExport" class="w-full px-3 py-2 rounded-xl bg-emerald-600 text-white shadow">Export PECTAB Skeleton</button>
+        <textarea id="output" rows="10" class="w-full border rounded-xl p-2 font-mono text-xs" placeholder="Exported PECTAB will appear here…"></textarea>
+      </div>
+
+      <details class="text-sm text-slate-600">
+        <summary class="cursor-pointer font-semibold">Tips</summary>
+        <ul class="list-disc ml-5 mt-2 space-y-1">
+          <li>Standard ATB size ≈ <b>8 × 3.25 in</b> (≈ 203 × 83 mm). Set DPI to 203 or 300.</li>
+          <li>Draw boxes over the PDF. Click a box to edit properties (name, size, etc.).</li>
+          <li>Export generates a vendor-agnostic PECTAB-like skeleton; adapt keywords to your firmware.</li>
+        </ul>
+      </details>
+    </section>
+
+    <!-- Canvas / PDF preview -->
+    <section class="lg:col-span-2 bg-white rounded-2xl shadow p-4 relative">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-semibold">PDF Preview (first page)</div>
+        <div class="text-sm text-slate-500">Zoom: <span id="zoomLabel">100%</span></div>
+      </div>
+      <div class="relative border rounded-xl overflow-auto" id="canvasWrap">
+        <canvas id="pdfCanvas" class="block mx-auto"></canvas>
+        <canvas id="overlay" class="absolute top-0 left-0"></canvas>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button id="zoomOut" class="px-3 py-2 rounded-xl bg-slate-200">−</button>
+        <button id="zoomReset" class="px-3 py-2 rounded-xl bg-slate-200">100%</button>
+        <button id="zoomIn" class="px-3 py-2 rounded-xl bg-slate-200">+</button>
+      </div>
+
+      <div class="mt-4">
+        <h2 class="text-lg font-semibold mb-2">Fields</h2>
+        <div id="fieldsList" class="space-y-2"></div>
+      </div>
+    </section>
+  </div>
+
+<script>
+  // ------------ PDF LOADING -------------
+  const pdfjsLib = window['pdfjs-dist/build/pdf'];
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  const pdfFile = document.getElementById('pdfFile');
+  const pdfCanvas = document.getElementById('pdfCanvas');
+  const overlay = document.getElementById('overlay');
+  const ctx = pdfCanvas.getContext('2d');
+  const octx = overlay.getContext('2d');
+  const canvasWrap = document.getElementById('canvasWrap');
+
+  let pdfDoc = null, scale = 1.2, pageViewport = null;
+
+  async function renderPDF(file) {
+    const url = URL.createObjectURL(file);
+    pdfDoc = await pdfjsLib.getDocument({ url }).promise;
+    const page = await pdfDoc.getPage(1); // first page only
+    pageViewport = page.getViewport({ scale });
+
+    pdfCanvas.width = pageViewport.width;
+    pdfCanvas.height = pageViewport.height;
+    overlay.width = pageViewport.width;
+    overlay.height = pageViewport.height;
+
+    const renderContext = { canvasContext: ctx, viewport: pageViewport };
+    await page.render(renderContext).promise;
+    drawOverlay();
+  }
+
+  pdfFile.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) renderPDF(f);
+  });
+
+  // ------------ ZOOM -------------
+  const zoomInBtn = document.getElementById('zoomIn');
+  const zoomOutBtn = document.getElementById('zoomOut');
+  const zoomResetBtn = document.getElementById('zoomReset');
+  const zoomLabel = document.getElementById('zoomLabel');
+
+  function rerenderAt(newScale) {
+    if (!pdfDoc) return;
+    scale = newScale;
+    pdfDoc.getPage(1).then(page => {
+      pageViewport = page.getViewport({ scale });
+      pdfCanvas.width = pageViewport.width;
+      pdfCanvas.height = pageViewport.height;
+      overlay.width = pageViewport.width;
+      overlay.height = pageViewport.height;
+      page.render({ canvasContext: ctx, viewport: pageViewport }).promise.then(() => drawOverlay());
+      zoomLabel.textContent = Math.round(scale * 100) + '%';
+    });
+  }
+
+  zoomInBtn.onclick = () => rerenderAt(scale * 1.1);
+  zoomOutBtn.onclick = () => rerenderAt(scale / 1.1);
+  zoomResetBtn.onclick = () => rerenderAt(1.2);
+
+  // ------------ FIELD MODEL -------------
+  const fields = []; // {id, type:'TEXT'|'BARCODE', name, x,y,w,h, font, size, weight, text}
+  let dragging = false, startX=0, startY=0; let currentRect = null; let selectedId = null;
+
+  function addField(partial) {
+    const id = crypto.randomUUID();
+    const f = Object.assign({ id, type:'TEXT', name:'FIELD_'+(fields.length+1), x:50, y:50, w:200, h:60, font:'SANSSERIF', size:28, weight:'NORMAL', text:'' }, partial);
+    fields.push(f);
+    selectedId = id;
+    drawOverlay();
+    renderFieldsList();
+  }
+
+  document.getElementById('btnAddText').onclick = () => addField({ type:'TEXT' });
+  document.getElementById('btnAddBarcode').onclick = () => addField({ type:'BARCODE', name:'BCBP', w:400, h:200 });
+  document.getElementById('btnClear').onclick = () => { fields.length = 0; selectedId = null; drawOverlay(); renderFieldsList(); };
+  document.getElementById('btnAddGiantA').onclick = () => {
+    // center a large A
+    const { width, height } = overlay;
+    const w = 200, h = 220; // visual box for reference
+    addField({ type:'TEXT', name:'GIANT_A', x: (width - w)/2, y: (height - h)/2, w, h, size:220, weight:'BOLD', text:'A' });
+  };
+
+  // ------------ DRAW & INTERACT -------------
+  function drawOverlay() {
+    octx.clearRect(0,0,overlay.width, overlay.height);
+    fields.forEach(f => {
+      octx.save();
+      octx.strokeStyle = (f.id===selectedId)? '#10b981' : '#0ea5e9';
+      octx.lineWidth = (f.id===selectedId)? 2.5 : 1.5;
+      octx.strokeRect(f.x, f.y, f.w, f.h);
+      octx.font = '12px monospace';
+      octx.fillStyle = '#111827';
+      octx.fillText(`${f.type}:${f.name}`, f.x+4, f.y-6);
+      if (f.type==='TEXT') {
+        octx.font = `${Math.min(20, f.size/4)}px sans-serif`;
+        octx.fillStyle = '#6b7280';
+        const sample = f.text || 'Sample';
+        octx.fillText(sample, f.x+6, f.y+Math.min(f.h-6, 18));
+      }
+      octx.restore();
+    });
+  }
+
+  overlay.addEventListener('mousedown', (e) => {
+    const rect = overlay.getBoundingClientRect();
+    const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+    selectedId = hitTest(x,y);
+    if (!selectedId) { // start drawing new
+      dragging = true; startX = x; startY = y; currentRect = { x, y, w:0, h:0 };
+    } else {
+      // start dragging selected
+      dragging = true; startX = x; startY = y;
+      const f = fields.find(f=>f.id===selectedId); f._ox=f.x; f._oy=f.y;
+    }
+    drawOverlay(); renderFieldsList();
+  });
+
+  overlay.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const rect = overlay.getBoundingClientRect();
+    const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+    if (currentRect) {
+      currentRect.w = x - startX; currentRect.h = y - startY;
+      drawOverlay();
+      // temp draw
+      octx.save(); octx.setLineDash([6,4]); octx.strokeStyle = '#64748b';
+      octx.strokeRect(currentRect.x, currentRect.y, currentRect.w, currentRect.h);
+      octx.restore();
+    } else if (selectedId) {
+      const f = fields.find(f=>f.id===selectedId);
+      const dx = x - startX; const dy = y - startY;
+      f.x = (f._ox || f.x) + dx; f.y = (f._oy || f.y) + dy;
+      drawOverlay();
+    }
+  });
+
+  overlay.addEventListener('mouseup', (e) => {
+    if (currentRect) {
+      const r = normalizeRect(currentRect);
+      addField({ x:r.x, y:r.y, w:r.w, h:r.h });
+      currentRect = null;
+    }
+    dragging = false;
+  });
+
+  function hitTest(x,y){
+    for (let i=fields.length-1;i>=0;i--) {
+      const f=fields[i];
+      if (x>=f.x && x<=f.x+f.w && y>=f.y && y<=f.y+f.h) return f.id;
+    }
+    return null;
+  }
+  function normalizeRect(r){
+    const x = Math.min(r.x, r.x+r.w);
+    const y = Math.min(r.y, r.y+r.h);
+    const w = Math.abs(r.w); const h = Math.abs(r.h);
+    return { x,y,w,h };
+  }
+
+  // ------------ FIELD LIST UI -------------
+  const fieldsList = document.getElementById('fieldsList');
+  function renderFieldsList(){
+    fieldsList.innerHTML = '';
+    fields.forEach(f => {
+      const div = document.createElement('div');
+      div.className = 'border rounded-xl p-3 hover:shadow transition';
+      div.innerHTML = `
+        <div class="flex justify-between items-center">
+          <div class="font-mono text-sm"><b>${f.type}</b> — ${f.name}</div>
+          <div class="flex gap-2">
+            <button data-act="sel" class="text-xs px-2 py-1 rounded bg-slate-200">Select</button>
+            <button data-act="del" class="text-xs px-2 py-1 rounded bg-rose-600 text-white">Delete</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-2 mt-2 text-xs">
+          <label class="flex flex-col">Name<input data-k="name" value="${f.name}" class="border rounded p-1"></label>
+          <label class="flex flex-col">Type
+            <select data-k="type" class="border rounded p-1">
+              <option ${f.type==='TEXT'?'selected':''}>TEXT</option>
+              <option ${f.type==='BARCODE'?'selected':''}>BARCODE</option>
+            </select>
+          </label>
+          <label class="flex flex-col">X<input data-k="x" type="number" step="1" value="${f.x}" class="border rounded p-1"></label>
+          <label class="flex flex-col">Y<input data-k="y" type="number" step="1" value="${f.y}" class="border rounded p-1"></label>
+          <label class="flex flex-col">W<input data-k="w" type="number" step="1" value="${f.w}" class="border rounded p-1"></label>
+          <label class="flex flex-col">H<input data-k="h" type="number" step="1" value="${f.h}" class="border rounded p-1"></label>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-xs">
+          <label class="flex flex-col">Font<input data-k="font" value="${f.font}" class="border rounded p-1"></label>
+          <label class="flex flex-col">Size<input data-k="size" type="number" step="1" value="${f.size}" class="border rounded p-1"></label>
+          <label class="flex flex-col">Weight
+            <select data-k="weight" class="border rounded p-1">
+              <option ${f.weight==='NORMAL'?'selected':''}>NORMAL</option>
+              <option ${f.weight==='BOLD'?'selected':''}>BOLD</option>
+            </select>
+          </label>
+          <label class="flex flex-col">Sample Text<input data-k="text" value="${f.text || ''}" class="border rounded p-1"></label>
+        </div>
+      `;
+      div.querySelectorAll('input,select').forEach(inp => {
+        inp.addEventListener('input', (ev)=>{
+          const k = ev.target.getAttribute('data-k');
+          let val = ev.target.value;
+          if (['x','y','w','h','size'].includes(k)) val = Number(val);
+          f[k] = val; drawOverlay();
+        });
+      });
+      div.querySelector('[data-act="del"]').onclick = ()=>{
+        const idx = fields.findIndex(x=>x.id===f.id); if (idx>-1) fields.splice(idx,1);
+        if (selectedId===f.id) selectedId=null; drawOverlay(); renderFieldsList();
+      };
+      div.querySelector('[data-act="sel"]').onclick = ()=>{ selectedId = f.id; drawOverlay(); };
+      fieldsList.appendChild(div);
+    });
+  }
+
+  // ------------ EXPORT -------------
+  function toDots(val, unit, dpi){
+    if (unit==='mm') return Math.round((val / 25.4) * dpi);
+    return Math.round(val * dpi); // inches
+  }
+
+  function exportPectab(){
+    const dpi = Number(document.getElementById('dpi').value);
+    const units = document.getElementById('units').value;
+    const mediaW = Number(document.getElementById('mediaW').value || 0);
+    const mediaH = Number(document.getElementById('mediaH').value || 0);
+    const margin = Number(document.getElementById('margin').value || 0);
+    const pid = document.getElementById('pectabId').value || 'BP_STD_V1';
+
+    if (!mediaW || !mediaH) {
+      alert('Please enter media width & height.');
+      return;
+    }
+
+    const widthDots = toDots(mediaW, units, dpi);
+    const heightDots = toDots(mediaH, units, dpi);
+
+    // Map overlay coordinates (pixels) to printer dots using proportional mapping
+    // x_dots = (x / overlay.width) * widthDots
+    function pxToDotsX(px){ return Math.round((px / overlay.width) * widthDots); }
+    function pxToDotsY(px){ return Math.round((px / overlay.height) * heightDots); }
+
+    let out = '';
+    out += `; ---- PECTAB Skeleton (generated) ----\n`;
+    out += `PECTAB ID=${pid}\n`;
+    out += `MEDIA WIDTH=${widthDots} HEIGHT=${heightDots}\n`;
+    out += `DENSITY=${dpi}\n`;
+    out += `MARGINS TOP=${margin} LEFT=${margin} RIGHT=${margin} BOTTOM=${margin}\n\n`;
+
+    fields.forEach(f => {
+      if (f.type==='TEXT') {
+        out += `FIELD NAME=${f.name} TYPE=TEXT\n`;
+        out += `PLACE FIELD=${f.name} X=${pxToDotsX(f.x)} Y=${pxToDotsY(f.y)} FONT=${f.font} SIZE=${Math.round(f.size)} WEIGHT=${f.weight} "${(f.text||' ')}"\n\n`;
+      } else if (f.type==='BARCODE') {
+        out += `FIELD NAME=${f.name} TYPE=BARCODE FORMAT=PDF417\n`;
+        out += `PLACE FIELD=${f.name} X=${pxToDotsX(f.x)} Y=${pxToDotsY(f.y)} W=${pxToDotsX(f.w)} H=${pxToDotsY(f.h)} ECLEVEL=5 ROWS=AUTO COLS=AUTO\n\n`;
+      }
+    });
+
+    out += `END PECTAB\n`;
+    document.getElementById('output').value = out;
+  }
+
+  document.getElementById('btnExport').onclick = exportPectab;
+</script>
+</body>
+</html>
