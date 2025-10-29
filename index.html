@@ -2,379 +2,201 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ATB/BTP PDF → PECTAB Generator</title>
-<!-- PDF.js -->
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ATB/BTP PDF → PECTAB</title>
+
+<!-- PDF.js core (worker set below) -->
 <script src="https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.min.js"></script>
+<script>
+  // Always set an explicit worker; fixes most “fake worker”/CORS errors
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.worker.min.js";
+  }
+</script>
+
 <style>
   :root {
-    --bg: #0b0f14; --panel: #121822; --muted: #6c7a91; --accent: #4aa6ff; --text: #e7eefb;
-    --ok: #39d98a; --warn: #ffb020; --bad: #ff6a69; --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --bg:#0b0f14; --panel:#121822; --muted:#6c7a91; --text:#e7eefb;
+    --accent:#4aa6ff; --ok:#39d98a; --warn:#ffb020; --bad:#ff6a69;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   }
-  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; }
-  .wrap { max-width: 1200px; margin: 32px auto; padding: 0 16px; }
-  h1 { margin: 0 0 8px; font-size: 1.6rem; }
-  p.lead { color: var(--muted); margin: 0 0 18px; }
-  .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-  @media (min-width: 1100px) { .grid { grid-template-columns: 1fr 1fr; } }
-  .card { background: var(--panel); border: 1px solid #1e2633; border-radius: 12px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
-  .card h2 { margin: 0 0 10px; font-size: 1.05rem; color: #d6e4ff; }
-  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
-  input[type="file"], input[type="text"], textarea, select { width: 100%; box-sizing: border-box; background: #0f1520; color: var(--text); border: 1px solid #263043; border-radius: 10px; padding: 10px 12px; }
-  textarea { font-family: var(--mono); min-height: 140px; }
-  pre { background:#0f1520; border:1px solid #263043; border-radius:10px; padding:12px; white-space:pre-wrap; word-break:break-word; min-height:140px; }
-  .hint { color: var(--muted); font-size: .9rem; }
-  .badge { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:20px; font-size:.82rem; }
-  .ok { background: rgba(57,217,138,.12); color: var(--ok); border: 1px solid rgba(57,217,138,.3); }
-  .warn { background: rgba(255,176,32,.12); color: var(--warn); border: 1px solid rgba(255,176,32,.3); }
-  .bad { background: rgba(255,106,105,.12); color: var(--bad); border: 1px solid rgba(255,106,105,.3); }
-  button { background: linear-gradient(180deg, #1b2738 0%, #152031 100%); color: var(--text); border:1px solid #274063; padding:10px 14px; border-radius:10px; cursor:pointer; transition: transform .04s ease-out, box-shadow .2s; }
-  button:hover { box-shadow: 0 6px 18px rgba(74,166,255,.18); }
-  button:active { transform: translateY(1px); }
-  .primary { background: linear-gradient(180deg, #1d61ff 0%, #1747c9 100%); border-color:#1d61ff; }
-  .ghost { background:#0f1520; }
-  .mono { font-family: var(--mono); }
-  .cols { display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; }
-  .cols3 { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; }
-  .field { display:flex; flex-direction:column; gap:6px; }
-  .label { font-size:.86rem; color:#c9d6ef; }
-  .pill { font-family: var(--mono); font-size:.86rem; padding: 6px 8px; background:#0f1520; border:1px solid #263043; border-radius:8px; }
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
+  .wrap{max-width:1100px;margin:36px auto;padding:0 16px}
+  h1{margin:0 0 10px;font-size:1.6rem}
+  p.lead{margin:0 0 18px;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px}
+  @media(min-width:1000px){.grid{grid-template-columns:1fr 1fr}}
+  .card{background:var(--panel);border:1px solid #1e2633;border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .card h2{margin:0 0 10px;color:#d6e4ff;font-size:1.05rem}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  input[type=file],textarea{width:100%;box-sizing:border-box;background:#0f1520;color:var(--text);
+    border:1px solid #263043;border-radius:10px;padding:10px 12px}
+  textarea{font-family:var(--mono);min-height:140px}
+  pre{background:#0f1520;color:var(--text);border:1px solid #263043;border-radius:10px;padding:12px;white-space:pre-wrap;word-break:break-word;min-height:140px}
+  .hint{color:var(--muted);font-size:.9rem}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:20px;font-size:.82rem}
+  .ok{background:rgba(57,217,138,.12);color:var(--ok);border:1px solid rgba(57,217,138,.3)}
+  .warn{background:rgba(255,176,32,.12);color:var(--warn);border:1px solid rgba(255,176,32,.3)}
+  .bad{background:rgba(255,106,105,.12);color:var(--bad);border:1px solid rgba(255,106,105,.3)}
+  button{background:linear-gradient(180deg,#1b2738 0%,#152031 100%);color:var(--text);border:1px solid #274063;
+    padding:10px 14px;border-radius:10px;cursor:pointer;transition:transform .04s, box-shadow .2s}
+  button:hover{box-shadow:0 6px 18px rgba(74,166,255,.18)} button:active{transform:translateY(1px)}
+  .primary{background:linear-gradient(180deg,#1d61ff 0%,#1747c9 100%);border-color:#1d61ff}
+  .mono{font-family:var(--mono)}
 </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>ATB/BTP PDF → PECTAB Generator</h1>
-    <p class="lead">Upload an ATB/BTP design PDF, I’ll read its text (via PDF.js), heuristically parse key fields, and build your <span class="mono">data</span> line and final PECTAB.</p>
+    <h1>ATB/BTP PDF → PECTAB</h1>
+    <p class="lead">Upload your custom ATB/BTP PDF. I’ll read its text (client-side) and show: <strong>PECTAB</strong>, <strong>Template</strong>, and <strong>Data</strong>.</p>
 
     <div class="grid">
       <div class="card">
         <h2>1) Upload PDF & Extract Text</h2>
         <input id="pdfFile" type="file" accept="application/pdf" />
         <div class="row">
-          <button id="btnExtract" class="ghost">Read PDF Text</button>
+          <button id="btnExtract">Read PDF Text</button>
           <span id="status" class="badge warn">Waiting for PDF…</span>
         </div>
-        <div class="hint" style="margin-top:6px">Client-side only. No server upload.</div>
+        <div class="hint" style="margin-top:6px">
+          If you open this file directly and see a worker error, serve it locally (e.g. <span class="mono">python -m http.server</span>) so the worker can load.
+        </div>
         <h2 style="margin-top:14px">Raw PDF Text (debug)</h2>
         <pre id="rawText">— none yet —</pre>
       </div>
 
       <div class="card">
-        <h2>2) Heuristic Field Detection</h2>
-        <div class="hint">These are auto-filled from the PDF text when possible. You can edit anything.</div>
-        <div class="cols3" style="margin-top:8px">
-          <div class="field"><div class="label">Ticket Type</div>
-            <select id="ticketType">
-              <option value="BTP">BTP</option>
-              <option value="ATB">ATB</option>
-            </select>
-          </div>
-          <div class="field"><div class="label">Design Code (6 digits)</div>
-            <input id="designCode" type="text" placeholder="010101" value="010101" />
-          </div>
-          <div class="field"><div class="label">Ensure trailing <span class="mono">$</span></div>
-            <select id="ensureDollar">
-              <option value="yes" selected>Yes</option>
-              <option value="no">No</option>
-            </select>
-          </div>
-        </div>
+        <h2>2) Detected Outputs</h2>
+        <div class="hint">Click <em>Parse</em> after extraction. Edit anything you like.</div>
 
-        <div class="cols" style="margin-top:10px">
-          <div class="field"><div class="label">#01 Name</div><input id="f01_name" type="text" placeholder="HU/HAISHENGMR" /></div>
-          <div class="field"><div class="label">#04 PNR / Locator</div><input id="f04_pnr" type="text" placeholder="MFFPXK" /></div>
-          <div class="field"><div class="label">#05 Class</div><input id="f05_class" type="text" placeholder="Y" /></div>
-          <div class="field"><div class="label">#06 Carrier + Flight</div><input id="f06_carrierFlight" type="text" placeholder="CA 113866" /></div>
-          <div class="field"><div class="label">#07 Segment #</div><input id="f07_seg" type="text" placeholder="3" /></div>
-          <div class="field"><div class="label">#08 From (IATA)</div><input id="f08_from" type="text" placeholder="LAX" /></div>
-          <div class="field"><div class="label">#09 Ticket/Doc #</div><input id="f09_doc" type="text" placeholder="3999113866" /></div>
-          <div class="field"><div class="label">#0A Bags</div><input id="f0A_bags" type="text" placeholder="016" /></div>
-          <div class="field"><div class="label">#0B Seq/Seat/Other</div><input id="f0B_misc" type="text" placeholder="59060" /></div>
-          <div class="field"><div class="label">#10 Carrier (repeat)</div><input id="f10_carrier" type="text" placeholder="CA" /></div>
-          <div class="field"><div class="label">#11 Flight #</div><input id="f11_flight" type="text" placeholder="4481" /></div>
-          <div class="field"><div class="label">#12 Date (DDMMM)</div><input id="f12_date" type="text" placeholder="22JUL" /></div>
+        <h3 style="margin:12px 0 6px">PECTAB (ATB/BTP)</h3>
+        <textarea id="pectabOut" placeholder="Full PECTAB code…"></textarea>
 
-          <div class="field"><div class="label">#15 From (IATA)</div><input id="f15_from" type="text" placeholder="JZH" /></div>
-          <div class="field"><div class="label">#16 From City</div><input id="f16_fromCity" type="text" placeholder="JIUZHAIHUANGLONG" /></div>
-          <div class="field"><div class="label">#18 # of Pax / etc.</div><input id="f18_misc" type="text" placeholder="1" /></div>
+        <h3 style="margin:12px 0 6px">Template (optional)</h3>
+        <textarea id="pectabTpl" placeholder="Template detected (if present)…"></textarea>
 
-          <div class="field"><div class="label">#20 Carrier</div><input id="f20_carrier" type="text" placeholder="CA" /></div>
-          <div class="field"><div class="label">#21 Flight #</div><input id="f21_flight" type="text" placeholder="1405" /></div>
-          <div class="field"><div class="label">#22 Date (DDMMM)</div><input id="f22_date" type="text" placeholder="21JUL" /></div>
+        <h3 style="margin:12px 0 6px">Data (optional)</h3>
+        <textarea id="dataLine" placeholder="ATB010101… or BTP010101…#$"></textarea>
 
-          <div class="field"><div class="label">#25 To (IATA)</div><input id="f25_to" type="text" placeholder="CTU" /></div>
-          <div class="field"><div class="label">#26 To City</div><input id="f26_toCity" type="text" placeholder="CHENGDU" /></div>
-          <div class="field"><div class="label">#28 Pax / etc.</div><input id="f28_misc" type="text" placeholder="1" /></div>
-
-          <div class="field"><div class="label">#30 Carrier</div><input id="f30_carrier" type="text" placeholder="CA" /></div>
-          <div class="field"><div class="label">#31 Flight #</div><input id="f31_flight" type="text" placeholder="0984" /></div>
-          <div class="field"><div class="label">#32 Date (DDMMM)</div><input id="f32_date" type="text" placeholder="21JUL" /></div>
-
-          <div class="field"><div class="label">#35 From (IATA)</div><input id="f35_from" type="text" placeholder="PEK" /></div>
-          <div class="field"><div class="label">#36 From City</div><input id="f36_fromCity" type="text" placeholder="BEIJING" /></div>
-
-          <div class="field"><div class="label">#77 Seq/Boarding #</div><input id="f77_seq" type="text" placeholder="137" /></div>
-          <div class="field"><div class="label">#78 Gate/Zone/Boarding Txt</div><input id="f78_boardtxt" type="text" placeholder="H O T" /></div>
-          <div class="field"><div class="label">#80 Carrier</div><input id="f80_carrier" type="text" placeholder="CA" /></div>
-          <div class="field"><div class="label">#81 Flight #</div><input id="f81_flight" type="text" placeholder="0984" /></div>
-          <div class="field"><div class="label">#82 Date (DDMMM)</div><input id="f82_date" type="text" placeholder="21JUL" /></div>
-          <div class="field"><div class="label">#85 To (IATA)</div><input id="f85_to" type="text" placeholder="PEK" /></div>
-          <div class="field"><div class="label">#86 To City</div><input id="f86_toCity" type="text" placeholder="BEIJING" /></div>
-        </div>
-
-        <div class="row" style="margin-top:10px">
-          <button id="btnAutoFill">Auto-fill from PDF (heuristic)</button>
-          <button id="btnBuildData" class="primary">Build data line</button>
-          <button id="btnCopyData">Copy data</button>
-        </div>
-
-        <div class="field" style="margin-top:10px">
-          <div class="label">Generated <span class="mono">data</span> line</div>
-          <textarea id="dataLine" placeholder="BTP010101#01...#$"></textarea>
+        <div class="row" style="margin-top:8px">
+          <button id="btnParse" class="primary">Parse</button>
+          <button id="btnCopyPectab">Copy PECTAB</button>
+          <button id="btnCopyTemplate">Copy Template</button>
+          <button id="btnCopyData">Copy Data</button>
         </div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h2>3) PECTAB Template & Final Output</h2>
-      <div class="hint">Paste your PECTAB template below. The generated <span class="mono">data</span> line will be appended.</div>
-      <textarea id="pectabTpl">AD;BTT0101]F0510250=#01C0 5255490201#02C0 5255150201#03C0 5255090201#04C0 5259180201#05C0 1000990201#06K0 A003250202#07C0 1000990201#08C0 5259490201#09I1 A007250632#0AC0 5474120201#0BC0 1000990201#10C0M1216020303#11C0M1216130303#12C0M1216310303#15C0MA224261006#16C0MA220260302#17C0 1000990201#18C0MA224440605#20C0M1196020303#21C0M1196130303#22C0M1196310303#25C0MA204261006#26C0MA200260302#27C0 1000990201#28C0MA204440605#30C0M1176020303#31C0M1176130303#32C0M1176310303#35C0MA184261006#36C0MA180260302#37C0 1000990201#38C0MA184440605#40C0 1000990201#41C0 1000990201#42C0 1000990201#45C0 1000990201#46C0 1000990201#47C0 1000990201#48C0 1000990201#77C0 1000990201#78C0M2159061408#80C0 1014050201#81C0 1014110201#82C0 1014230201#85C0 1014380201#86C0 1000990201#87C0 1000990201#88C0 1000990201#A1C0 5491490201=30#A2C0 5491430201=31#A3C0 5491300201=32#A4C0 5491130201=35#A5C0 5487490201=20#A6C0 5487430201=21#A7C0 5487300201=22#A8C0 5487130201=25#A9C0 5483490201=10#AAC0 5483430201=11#ABC0 5483300201=12#ACC0 5483130201=15#ADC0 E479250201=16#AEC0 5474490201BAG:#AFC0 5474390201=02#B0C0 5474350201/#B1C0 5474330201=03#B2C0 5474240201B/NO:#B3C0 5470490201=01#B4K0 E465250303=06#B5I1 E461260532=09#B6C0 5259420201/#B7C0 5259400201=82#B8C0 5255110201/#B9S0MA235250250#BAC0M1231020302TO#BBS0MA215250250#BCC0M1211020302VIA#BDS0MA195250250#BEC0M1191020302VIA#BFS0MA175250250#C0I1MC132474341=09#C1I1MA069254041=09#C2K0MA065250202=06#C3C0 1054380201=85#C4C0 1054230201=82#C5C0 1054110201=81#C6C0 1054050201=80#C7I1 A047250632=09#C8K0 A043250202=06#C9C0 1034380201=85#CAC0 1034230201=82#CBC0 1034110201=81#CCC0 1034050201=80#CDI1 A027250632=09#CEK0 A023250202=06#</textarea>
-      <div class="row" style="margin-top:8px">
-        <label class="hint"><input id="avoidDoubleDollar" type="checkbox" checked /> Avoid double <span class="mono">$$</span> at merge</label>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button id="btnMakePectab" class="primary">Generate Final PECTAB</button>
-        <button id="btnCopyFinal">Copy Final</button>
-        <button id="btnDownloadFinal">Download .txt</button>
-      </div>
-      <div class="field" style="margin-top:10px">
-        <div class="label">Final PECTAB</div>
-        <textarea id="finalOut" placeholder="Template + data line…"></textarea>
-      </div>
+      <h2>3) How parsing works</h2>
+      <ul>
+        <li><strong>PECTAB</strong>: longest <span class="mono">AD;</span>… block with many <span class="mono">#</span> fields.</li>
+        <li><strong>Data</strong>: best match of <span class="mono">ATB/BTP</span> + 6 digits with many <span class="mono">#</span>; trailing <span class="mono">$</span> added if missing.</li>
+        <li><strong>Template</strong>: another PECTAB-like block labelled <em>Template</em>/<em>Mockup</em>/<em>Example</em> if present; else it’s left blank.</li>
+      </ul>
     </div>
-
-    <div class="card" style="margin-top:16px">
-      <h2>4) Config (advanced)</h2>
-      <div class="hint">Export or import the extracted field map as JSON to tweak your own heuristics offline.</div>
-      <div class="row">
-        <button id="btnExport">Export JSON</button>
-        <input id="jsonImport" type="file" accept="application/json" />
-        <button id="btnImport">Import JSON</button>
-      </div>
-    </div>
-
   </div>
 
 <script>
-  // ===================== PDF.js bootstrap =====================
-  if (window['pdfjsLib']) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.worker.min.js';
-  }
-  const $ = sel => document.querySelector(sel);
-
+  // ------------- helpers -------------
+  const $ = (s)=>document.querySelector(s);
   const els = {
-    file: $('#pdfFile'),
-    btnExtract: $('#btnExtract'),
-    status: $('#status'),
-    rawText: $('#rawText'),
-
-    ticketType: $('#ticketType'),
-    designCode: $('#designCode'),
-    ensureDollar: $('#ensureDollar'),
-
-    f01: $('#f01_name'), f04: $('#f04_pnr'), f05: $('#f05_class'), f06: $('#f06_carrierFlight'), f07: $('#f07_seg'), f08: $('#f08_from'), f09: $('#f09_doc'), f0A: $('#f0A_bags'), f0B: $('#f0B_misc'), f10: $('#f10_carrier'), f11: $('#f11_flight'), f12: $('#f12_date'),
-    f15: $('#f15_from'), f16: $('#f16_fromCity'), f18: $('#f18_misc'),
-    f20: $('#f20_carrier'), f21: $('#f21_flight'), f22: $('#f22_date'),
-    f25: $('#f25_to'), f26: $('#f26_toCity'), f28: $('#f28_misc'),
-    f30: $('#f30_carrier'), f31: $('#f31_flight'), f32: $('#f32_date'),
-    f35: $('#f35_from'), f36: $('#f36_fromCity'),
-    f77: $('#f77_seq'), f78: $('#f78_boardtxt'), f80: $('#f80_carrier'), f81: $('#f81_flight'), f82: $('#f82_date'), f85: $('#f85_to'), f86: $('#f86_toCity'),
-
-    btnAutoFill: $('#btnAutoFill'),
-    btnBuildData: $('#btnBuildData'),
-    dataLine: $('#dataLine'),
-    btnCopyData: $('#btnCopyData'),
-
-    tpl: $('#pectabTpl'), avoidDoubleDollar: $('#avoidDoubleDollar'), btnMakePectab: $('#btnMakePectab'), btnCopyFinal: $('#btnCopyFinal'), btnDownloadFinal: $('#btnDownloadFinal'), finalOut: $('#finalOut'),
-
-    btnExport: $('#btnExport'), jsonImport: $('#jsonImport'), btnImport: $('#btnImport')
+    file: $('#pdfFile'), btnExtract: $('#btnExtract'), status: $('#status'), rawText: $('#rawText'),
+    pectabOut: $('#pectabOut'), pectabTpl: $('#pectabTpl'), dataLine: $('#dataLine')
   };
+  function setBadge(kind, txt){ els.status.className = 'badge ' + kind; els.status.textContent = txt; }
+  function cleanText(s){ return (s||'').replace(/\u00A0/g,' ').replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n'); }
+  function normalizeSpaces(s){ return (s||'').replace(/\u00A0/g,' ').replace(/[ \t]+/g,' ').trim(); }
 
-  function setBadge(type, text) {
-    els.status.className = 'badge ' + type; els.status.textContent = text;
-  }
+  // ------------- PDF text extraction (with fallback) -------------
+  els.btnExtract.addEventListener('click', async ()=>{
+    const f = els.file.files?.[0];
+    if (!f) { setBadge('bad','No PDF selected'); return; }
 
-  function cleanText(s) { return (s||'').replace(/\u00A0/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n'); }
-
-  async function readPdfTextFromFile(file) {
-    setBadge('warn', 'Reading PDF…');
-    const buf = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-    let full = '';
-    for (let p = 1; p <= pdf.numPages; p++) {
-      const page = await pdf.getPage(p);
-      const content = await page.getTextContent();
-      const text = content.items.map(i => i.str).join(' ');
-      full += `\n\n===== PAGE ${p}/${pdf.numPages} =====\n` + text;
-    }
-    return cleanText(full);
-  }
-
-  // ===================== Heuristic extraction =====================
-  function guessName(text) {
-    // Looks like LAST/FIRST + optional suffix (MR/MRS/MS/DR)
-    const re = /\b([A-Z]{2,})\/([A-Z]{2,})(MR|MRS|MS|MISS|MSTR|DR)?\b/;
-    const m = re.exec(text.replace(/\s+/g,' '));
-    return m ? `${m[1]}/${m[2]}${m[3]||''}` : '';
-  }
-
-  function guessPNR(text) {
-    // 5–6 alnum uppercase typical PNR
-    const m = /\b([A-Z0-9]{5,6})\b/.exec(text.replace(/\s+/g,' '));
-    // Avoid accidentally capturing IATA codes (3 letters) by preferring 6
-    return (m && m[1].length>=6) ? m[1] : '';
-  }
-
-  function guessAirlineAndFlight(text) {
-    // Airline IATA (2 letters) + optional flight number; capture top 2 candidates
-    const flat = text.replace(/\s+/g,' ');
-    const re = /\b([A-Z]{2})\s?(\d{2,5})\b/g;
-    const hits = []; let m;
-    while ((m = re.exec(flat))!==null) { hits.push({carrier:m[1], flight:m[2]}); }
-    // Return first hit for multiple positions (you can refine manually)
-    return hits[0] || { carrier:'', flight:'' };
-  }
-
-  function guessIATAs(text) {
-    const found = new Set();
-    const re = /\b([A-Z]{3})\b/g; let m;
-    while ((m=re.exec(text))!==null) found.add(m[1]);
-    // Common false-positives to drop
-    ['MR','MRS','MS','DR','BAG','VIA','TO'].forEach(x=>found.delete(x));
-    return Array.from(found);
-  }
-
-  function guessDates(text) {
-    // e.g., 21JUL, 05OCT
-    const re = /\b(\d{2}[A-Z]{3})\b/g; const out=[]; let m; while((m=re.exec(text))!==null) out.push(m[1]); return out;
-  }
-
-  function guessDocNumber(text) {
-    // Try 10–13 digits for e-ticket/doc #
-    const m = /\b(\d{10,13})\b/.exec(text.replace(/\s+/g,' '));
-    return m ? m[1] : '';
-  }
-
-  function autoFillFromText(text) {
-    els.f01.value = els.f01.value || guessName(text);
-    els.f04.value = els.f04.value || guessPNR(text);
-
-    const a1 = guessAirlineAndFlight(text);
-    if (!els.f06.value && (a1.carrier||a1.flight)) els.f06.value = `${a1.carrier} ${a1.flight}`.trim();
-    if (!els.f10.value && a1.carrier) els.f10.value = a1.carrier;
-    if (!els.f11.value && a1.flight) els.f11.value = a1.flight;
-
-    const iatas = guessIATAs(text);
-    if (!els.f08.value && iatas[0]) els.f08.value = iatas[0];
-    if (!els.f25.value && iatas[1]) els.f25.value = iatas[1];
-    if (!els.f35.value && iatas[2]) els.f35.value = iatas[2];
-    if (!els.f85.value && iatas[3]) els.f85.value = iatas[3];
-
-    const dates = guessDates(text);
-    if (!els.f12.value && dates[0]) els.f12.value = dates[0];
-    if (!els.f22.value && dates[1]) els.f22.value = dates[1];
-    if (!els.f32.value && dates[2]) els.f32.value = dates[2];
-    if (!els.f82.value && dates[3]) els.f82.value = dates[3];
-
-    if (!els.f09.value) els.f09.value = guessDocNumber(text);
-  }
-
-  // ===================== Data line builder =====================
-  function ensureDollar(s) { return /\$$/.test(s) ? s : s + '$'; }
-  function buildDataLine() {
-    const tag = `${els.ticketType.value}${(els.designCode.value||'000000').padStart(6,'0')}`;
-    const fields = [
-      ['01', els.f01.value], ['04', els.f04.value], ['05', els.f05.value], ['06', els.f06.value], ['07', els.f07.value], ['08', els.f08.value], ['09', els.f09.value],
-      ['0A', els.f0A.value], ['0B', els.f0B.value], ['10', els.f10.value], ['11', els.f11.value], ['12', els.f12.value],
-      ['15', els.f15.value], ['16', els.f16.value], ['18', els.f18.value],
-      ['20', els.f20.value], ['21', els.f21.value], ['22', els.f22.value],
-      ['25', els.f25.value], ['26', els.f26.value], ['28', els.f28.value],
-      ['30', els.f30.value], ['31', els.f31.value], ['32', els.f32.value],
-      ['35', els.f35.value], ['36', els.f36.value],
-      ['77', els.f77.value], ['78', els.f78.value], ['80', els.f80.value], ['81', els.f81.value], ['82', els.f82.value], ['85', els.f85.value], ['86', els.f86.value]
-    ].filter(([k,v]) => (v||'').toString().trim().length>0)
-     .map(([k,v]) => `#${k}${v.startsWith(' ')||v.startsWith('\t')?v:' '+v}`.replace(/\s+/g,' '));
-
-    let data = tag + fields.join('');
-    if (els.ensureDollar.value === 'yes') data = ensureDollar(data);
-    return data;
-  }
-
-  function preventDoubleDollar(s) { return s.replace(/\$\s*\$/g,'$'); }
-
-  // ===================== Events =====================
-  els.btnExtract.addEventListener('click', async () => {
-    const f = els.file.files?.[0]; if (!f) { setBadge('bad', 'No PDF selected'); return; }
     try {
-      const txt = await readPdfTextFromFile(f); els.rawText.textContent = txt || '— empty —'; setBadge('ok','Text extracted');
-    } catch (e) { console.error(e); setBadge('bad','Failed to read PDF'); }
-  });
+      const buf = await f.arrayBuffer();
+      let text = '';
 
-  els.btnAutoFill.addEventListener('click', () => {
-    const txt = els.rawText.textContent || '';
-    if (!txt || /— none yet —/.test(txt)) { setBadge('bad','Extract text first'); return; }
-    autoFillFromText(txt); setBadge('ok','Heuristic fill complete');
-  });
-
-  els.btnBuildData.addEventListener('click', () => {
-    const line = buildDataLine(); els.dataLine.value = line; setBadge('ok','Data line built');
-  });
-
-  els.btnCopyData.addEventListener('click', () => { els.dataLine.select(); document.execCommand('copy'); });
-
-  els.btnMakePectab.addEventListener('click', () => {
-    const tpl = (els.tpl.value||'').trim(); const data = (els.dataLine.value||'').trim();
-    if (!tpl) { alert('Template is empty'); return; }
-    if (!data) { if (!confirm('No data line yet. Continue with template only?')) return; }
-    let merged = tpl + (data? ('\n' + data) : ''); if (els.avoidDoubleDollar.checked) merged = preventDoubleDollar(merged); els.finalOut.value = merged;
-  });
-
-  els.btnCopyFinal.addEventListener('click', () => { els.finalOut.select(); document.execCommand('copy'); });
-
-  els.btnDownloadFinal.addEventListener('click', () => {
-    const blob = new Blob([els.finalOut.value || ''], { type: 'text/plain;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-'); a.download = `pectab-${stamp}.txt`; document.body.appendChild(a); a.click(); a.remove();
-  });
-
-  // ===================== Config import/export =====================
-  els.btnExport.addEventListener('click', () => {
-    const cfg = {
-      ticketType: els.ticketType.value, designCode: els.designCode.value, ensureDollar: els.ensureDollar.value,
-      fields: {
-        f01: els.f01.value, f04: els.f04.value, f05: els.f05.value, f06: els.f06.value, f07: els.f07.value, f08: els.f08.value, f09: els.f09.value,
-        f0A: els.f0A.value, f0B: els.f0B.value, f10: els.f10.value, f11: els.f11.value, f12: els.f12.value,
-        f15: els.f15.value, f16: els.f16.value, f18: els.f18.value,
-        f20: els.f20.value, f21: els.f21.value, f22: els.f22.value,
-        f25: els.f25.value, f26: els.f26.value, f28: els.f28.value,
-        f30: els.f30.value, f31: els.f31.value, f32: els.f32.value,
-        f35: els.f35.value, f36: els.f36.value,
-        f77: els.f77.value, f78: els.f78.value, f80: els.f80.value, f81: els.f81.value, f82: els.f82.value, f85: els.f85.value, f86: els.f86.value
+      async function extractWith(opts){
+        const pdf = await pdfjsLib.getDocument(Object.assign({ data: buf }, opts || {})).promise;
+        for (let p = 1; p <= pdf.numPages; p++){
+          const page = await pdf.getPage(p);
+          const content = await page.getTextContent({ includeMarkedContent:false });
+          text += `\n\n===== PAGE ${p}/${pdf.numPages} =====\n` + content.items.map(i=>i.str).join(' ');
+        }
       }
-    };
-    const blob = new Blob([JSON.stringify(cfg,null,2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'pectab-config.json'; document.body.appendChild(a); a.click(); a.remove();
+
+      try {
+        await extractWith(); // normal path
+      } catch (err) {
+        console.warn('Worker issue — retrying without worker', err);
+        // fallback that works when opened from file:// or strict CSP
+        await extractWith({ isEvalSupported:false, useWorkerFetch:false, disableAutoFetch:false });
+      }
+
+      els.rawText.textContent = cleanText(text) || '— empty —';
+      setBadge('ok','Text extracted');
+    } catch (e) {
+      console.error(e);
+      setBadge('bad','Error while reading PDF');
+    }
   });
 
-  els.btnImport.addEventListener('click', async () => {
-    const file = els.jsonImport.files?.[0]; if (!file) { alert('Pick a JSON first.'); return; }
-    try {
-      const txt = await file.text(); const cfg = JSON.parse(txt);
-      els.ticketType.value = cfg.ticketType || 'BTP'; els.designCode.value = cfg.designCode || '010101'; els.ensureDollar.value = cfg.ensureDollar || 'yes';
-      const f = cfg.fields || {};
-      Object.entries(f).forEach(([k,v]) => { if (els[k]) els[k].value = v || ''; });
-      setBadge('ok','Config imported');
-    } catch (e) { console.error(e); setBadge('bad','Bad JSON'); }
+  // ------------- detectors (custom ATB/BTP) -------------
+  function detectData(flat){
+    const candidates = []; let m;
+    // Prefer strings that end with $
+    const greedy = /\b((?:ATB|BTP)\d{6}[^$]{0,3000}\$)/g;
+    while((m = greedy.exec(flat)) !== null) candidates.push(m[1]);
+
+    // If none end with $, allow non-$ and we’ll add it
+    if (candidates.length === 0) {
+      const loose = /\b((?:ATB|BTP)\d{6}[^]{0,1200})/g;
+      while((m = loose.exec(flat)) !== null) candidates.push(m[1]);
+    }
+
+    function score(s){
+      const hashes = (s.match(/#/g) || []).length;
+      const hasDollar = /\$\s*$/.test(s) ? 5 : 0;
+      return hashes*5 + hasDollar + Math.min(s.length,1200)/80;
+    }
+    candidates.sort((a,b)=>score(b)-score(a));
+
+    let best = candidates[0] ? normalizeSpaces(candidates[0]) : '';
+    if (best && !/\$$/.test(best)) best += '$';
+    return best;
+  }
+
+  function detectPectab(flat){
+    const hits = []; let m;
+    const re = /\b(AD;[^]{50,8000})/g;
+    while((m = re.exec(flat)) !== null) hits.push(m[1]);
+    const good = hits.filter(s => (s.match(/#/g) || []).length >= 15);
+    if (good.length === 0) return '';
+    good.sort((a,b)=> (b.match(/#/g)||[]).length - (a.match(/#/g)||[]).length);
+    return normalizeSpaces(good[0]);
+  }
+
+  function detectTemplate(flat){
+    const tag = /\b(TEMPLATE|MOCKUP|EXAMPLE)\b\s*[:\-]?\s*(AD;[^]{30,4000})/i.exec(flat);
+    return tag ? normalizeSpaces(tag[2]) : '';
+  }
+
+  // ------------- Parse + copy -------------
+  $('#btnParse').addEventListener('click', ()=>{
+    const flat = normalizeSpaces(($('#rawText').textContent || '').replace(/\s+/g,' '));
+    if (!flat || /— none yet —/.test(flat)) { setBadge('bad','Extract text first'); return; }
+    els.pectabOut.value = detectPectab(flat) || '';
+    els.dataLine.value = detectData(flat) || '';
+    els.pectabTpl.value = detectTemplate(flat) || '';
+    setBadge('ok','Parsed');
   });
+
+  function copy(el){ el.select(); document.execCommand('copy'); }
+  $('#btnCopyPectab').addEventListener('click', ()=>copy(els.pectabOut));
+  $('#btnCopyTemplate').addEventListener('click', ()=>copy(els.pectabTpl));
+  $('#btnCopyData').addEventListener('click', ()=>copy(els.dataLine));
 </script>
 </body>
 </html>
