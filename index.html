@@ -32,7 +32,7 @@
 </head>
 <body>
   <h1>PDF (Base64) → PECTAB</h1>
-  <p class="muted small">Drop your <b>PDF as Base64</b> below. This tool parses text + tries to decode barcodes. Adjust positions and export a generic PECTAB.</p>
+  <p class="muted small">Paste your <b>PDF Base64</b>. This parses text + tries to decode barcodes. Edit positions and export a generic PECTAB.</p>
 
   <div class="grid">
     <!-- INPUT -->
@@ -41,7 +41,7 @@
       <textarea id="b64Input" placeholder="Paste Base64 (raw or data:application/pdf;base64,...)"></textarea>
       <div class="kv">
         <div>
-          <label>Printer DPI <span class="hint">(dots per inch; typical ATB = 203)</span></label>
+          <label>Printer DPI <span class="hint">(typical ATB = 203)</span></label>
           <input id="dpi" type="number" value="203" />
         </div>
         <div>
@@ -53,7 +53,6 @@
         <button id="parseBtn" class="btn">Parse PDF</button>
         <button id="clearBtn" class="btn secondary">Clear</button>
       </div>
-      <p class="small muted">If your string is a data URL, that’s fine. Otherwise paste the raw Base64; we’ll normalize it.</p>
     </div>
 
     <!-- PREVIEW + FIELDS -->
@@ -117,12 +116,12 @@
       const clean = b64.replace(/^data:application\\/pdf;base64,/, '').replace(/\\s+/g,'').replace(/-/g,'+').replace(/_/g,'/');
       const str = atob(clean);
       const bytes = new Uint8Array(str.length);
-      for (let i=0;i<str.length;i++) bytes[i] = str.charCodeAt(i);
+      for (let i=0;i<str.length;i++) bytes[i] = str.charCodeAt(0);
       return bytes;
     }
 
     function pointsToDots(vPoints, dpi) {
-      // 1 point = 1/72 inch; dots = inches * dpi = (points/72) * dpi
+      // 1 point = 1/72 inch; dots = (points/72) * dpi
       return Math.round((vPoints / 72) * dpi);
     }
 
@@ -132,7 +131,7 @@
       lines.push(`PAGE WIDTH=${pageDots.width} HEIGHT=${pageDots.height}  ; units: dots`);
       lines.push("");
 
-      (textBlocks || []).forEach((t, i) => {
+      (textBlocks || []).forEach((t) => {
         const x = Math.max(0, Math.round(t.x || 0));
         const y = Math.max(0, Math.round(t.y || 0));
         const size = t.size || 10;
@@ -161,8 +160,7 @@
     }
 
     function mergeWordsIntoLines(items, tolerance=6) {
-      // items: [{x,y,size,font,text}] in dots
-      // Merge by similar Y within tolerance, order by X
+      // Merge items with similar Y (±tolerance), order by X
       const rows = [];
       for (const it of items) {
         let row = rows.find(r => Math.abs(r.y - it.y) <= tolerance);
@@ -218,28 +216,26 @@
 
         // Extract text
         const txt = await page.getTextContent();
-        // Each item has transform [a,b,c,d,e,f] and width, height, str
-        // We’ll use e,f as baseline position (in points), convert to dots; flip Y (PDF origin bottom-left)
         const hPts = viewport.viewBox[3];
         for (const it of txt.items) {
-          const m = it.transform; // [a, b, c, d, e, f]
+          const m = it.transform; // [a,b,c,d,e,f]
           const xPts = m[4];
           const yPtsBaseline = m[5];
-          const yPtsTop = hPts - yPtsBaseline; // approximate flip
-          const sizePts = Math.hypot(m[0], m[1]); // font size approx
+          const yPtsTop = hPts - yPtsBaseline; // flip to canvas-style origin
+          const sizePts = Math.hypot(m[0], m[1]); // approx font size
 
           const x = pointsToDots(xPts, dpi);
           const y = pointsToDots(yPtsTop, dpi);
-          const size = Math.max(8, Math.round(pointsToDots(sizePts, dpi) / 1.5)); // heuristic to printer font size
+          const size = Math.max(8, Math.round(pointsToDots(sizePts, dpi) / 1.5)); // heuristic
           extractedTextDots.push({ page:p, x, y, size, font:"A", text: it.str });
         }
 
         // Render to canvas and try barcode
-        await renderPageToCanvas(p, 2.0); // scale 2 for better decode
+        await renderPageToCanvas(p, 2.0); // higher scale helps decoding
         await tryDecodeBarcodeFromCanvas();
       }
 
-      // Seed UI with merged lines from all parsed pages (sorted by page then y)
+      // Seed UI with merged lines from all parsed pages
       const merged = mergeWordsIntoLines(extractedTextDots, 6).sort((a,b)=>a.y-b.y);
       $("#textBlocks").value = JSON.stringify(merged, null, 2);
       $("#barcodes").value = Array.from(decodedBarcodes).join("\\n");
@@ -268,13 +264,14 @@
         ZXing.BarcodeFormat.AZTEC
       ];
       hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
 
       const reader = new ZXing.BrowserMultiFormatReader(hints);
       try {
         const res = await reader.decodeFromImageUrl(url);
         if (res && res.text) decodedBarcodes.add(res.text);
       } catch {
-        // no barcode detected on this render – ignore
+        // no barcode found — ignore
       }
       reader.reset();
     }
@@ -314,8 +311,7 @@
 
     $("#genBtn").addEventListener("click", () => {
       const dpi = Number($("#dpi").value)||203;
-      // Use first page size to compute PAGE width/height (dots). If multiple pages, take page 1.
-      const page1 = pageSizesPts[1] || { width: 612, height: 360 }; // default ~ 8.5x5"
+      const page1 = pageSizesPts[1] || { width: 612, height: 360 }; // fallback
       const pageDots = {
         width: pointsToDots(page1.width, dpi),
         height: pointsToDots(page1.height, dpi)
@@ -345,9 +341,6 @@
       a.remove();
       setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
     });
-
-    // --------------- Example seed (optional) ---------------
-    // Minimal single-page blank PDF (Base64) would be too long; leaving empty by default.
   </script>
 </body>
 </html>
