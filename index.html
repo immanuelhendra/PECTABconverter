@@ -46,12 +46,12 @@
       <div class="grid grid-cols-2 gap-2">
         <div>
           <label class="block text-sm font-semibold">Media Width</label>
-          <input id="mediaW" type="number" step="0.1" class="w-full border rounded-lg p-2" placeholder="83" />
+          <input id=\"mediaW\"$1placeholder=\"83\" value=\"83\" />
           <div class="text-xs text-slate-500">e.g. 83 mm (3.25 in)</div>
         </div>
         <div>
           <label class="block text-sm font-semibold">Media Height</label>
-          <input id="mediaH" type="number" step="0.1" class="w-full border rounded-lg p-2" placeholder="203" />
+          <input id=\"mediaH\"$1placeholder=\"203\" value=\"203\" />
           <div class="text-xs text-slate-500">e.g. 203 mm (8 in)</div>
         </div>
       </div>
@@ -70,7 +70,6 @@
       <div class="flex flex-wrap gap-2">
         <button id="btnAddText" class="px-3 py-2 rounded-xl bg-slate-900 text-white shadow">Add TEXT field</button>
         <button id="btnAddBarcode" class="px-3 py-2 rounded-xl bg-slate-900 text-white shadow">Add BARCODE field</button>
-        <button id="btnAddGiantA" class="px-3 py-2 rounded-xl bg-indigo-600 text-white shadow">Add Giant "A"</button>
         <button id="btnClear" class="px-3 py-2 rounded-xl bg-rose-600 text-white shadow">Clear fields</button>
       </div>
 
@@ -186,11 +185,7 @@
 
   document.getElementById('btnAddText').onclick = () => addField({ type:'TEXT' });
   document.getElementById('btnAddBarcode').onclick = () => addField({ type:'BARCODE', name:'BCBP', w:400, h:200 });
-  document.getElementById('btnClear').onclick = () => { fields.length = 0; selectedId = null; drawOverlay(); renderFieldsList(); };
-  document.getElementById('btnAddGiantA').onclick = () => {
-    // center a large A
-    const { width, height } = overlay;
-    const w = 200, h = 220; // visual box for reference
+  document.getElementById('btnClear').onclick = () => { fields.length = 0; selectedId = null; drawOverlay(); renderFieldsList(); };    const w = 200, h = 220; // visual box for reference
     addField({ type:'TEXT', name:'GIANT_A', x: (width - w)/2, y: (height - h)/2, w, h, size:220, weight:'BOLD', text:'A' });
   };
 
@@ -342,10 +337,21 @@
     const margin = Number(document.getElementById('margin').value || 0);
     const pid = document.getElementById('pectabId').value || 'BP_STD_V1';
 
-    if (!mediaW || !mediaH) {
-      alert('Please enter media width & height.');
-      return;
-    }
+    // Fallback defaults if not provided
+if (!mediaW) {
+  if (units==='mm') {
+    mediaW = 83;
+  } else {
+    mediaW = 3.25;
+  }
+}
+if (!mediaH) {
+  if (units==='mm') {
+    mediaH = 203;
+  } else {
+    mediaH = 8;
+  }
+}
 
     const widthDots = toDots(mediaW, units, dpi);
     const heightDots = toDots(mediaH, units, dpi);
