@@ -4,7 +4,6 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>PDF → PECTAB Generator (ATB/BTP)</title>
-<!-- PDF.js (stable) -->
 <script src="https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.min.js"></script>
 <style>
   :root {
@@ -18,65 +17,46 @@
     --bad: #ff6a69;
     --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   }
-  html, body {
-    margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-  }
-  .wrap {
-    max-width: 1100px; margin: 40px auto; padding: 0 16px;
-  }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
+  .wrap { max-width: 1100px; margin: 40px auto; padding: 0 16px; }
   h1 { font-size: 1.6rem; margin: 0 0 12px; }
   p.lead { color: var(--muted); margin: 0 0 24px; }
-  .grid {
-    display: grid; grid-template-columns: 1fr; gap: 16px;
-  }
-  @media (min-width: 1000px) {
-    .grid { grid-template-columns: 1fr 1fr; }
-  }
-  .card {
-    background: var(--panel); border: 1px solid #1e2633; border-radius: 12px; padding: 16px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-  }
-  .card h2 {
-    margin: 0 0 12px; font-size: 1.1rem; color: #d6e4ff;
-  }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 1000px) { .grid { grid-template-columns: 1fr 1fr; } }
+  .card { background: var(--panel); border: 1px solid #1e2633; border-radius: 12px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  .card h2 { margin: 0 0 12px; font-size: 1.1rem; color: #d6e4ff; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
-  input[type="file"] {
-    background: #0f1520; border: 1px dashed #2a3446; color: var(--text);
-    padding: 10px 12px; border-radius: 10px;
-  }
+  input[type="file"] { background: #0f1520; border: 1px dashed #2a3446; color: var(--text); padding: 10px 12px; border-radius: 10px; }
   textarea, pre, input[type="text"] {
-    width: 100%; box-sizing: border-box;
-    background: #0f1520; color: var(--text);
-    border: 1px solid #263043; border-radius: 10px;
-    padding: 10px 12px; font-family: var(--mono); font-size: 0.92rem; line-height: 1.35;
-  }
+    width: 100%; box-sizing: border-box; background: #0f1520; color: var(--text);
+    border: 1px solid #263043; border-radius: 10px; padding: 10px 12px; font-family: var(--mono); font-size: .92rem; line-height: 1.35; }
   textarea { min-height: 180px; }
   pre { min-height: 180px; white-space: pre-wrap; word-break: break-word; }
-  .hint { font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
-  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 20px; font-size: 0.82rem; }
-  .ok { background: rgba(57,217,138,0.12); color: var(--ok); border: 1px solid rgba(57,217,138,0.3); }
-  .warn { background: rgba(255,176,32,0.12); color: var(--warn); border: 1px solid rgba(255,176,32,0.3); }
-  .bad { background: rgba(255,106,105,0.12); color: var(--bad); border: 1px solid rgba(255,106,105,0.3); }
+  .hint { font-size: .85rem; color: var(--muted); margin-top: 6px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 20px; font-size: .82rem; }
+  .ok { background: rgba(57,217,138,.12); color: var(--ok); border: 1px solid rgba(57,217,138,.3); }
+  .warn { background: rgba(255,176,32,.12); color: var(--warn); border: 1px solid rgba(255,176,32,.3); }
+  .bad { background: rgba(255,106,105,.12); color: var(--bad); border: 1px solid rgba(255,106,105,.3); }
   button {
     background: linear-gradient(180deg, #1b2738 0%, #152031 100%);
     color: var(--text); border: 1px solid #274063; padding: 10px 14px; border-radius: 10px; cursor: pointer;
-    transition: transform .04s ease-out, box-shadow .2s;
-  }
+    transition: transform .04s ease-out, box-shadow .2s; }
   button:hover { box-shadow: 0 6px 18px rgba(74,166,255,.18); }
   button:active { transform: translateY(1px); }
   .primary { background: linear-gradient(180deg, #1d61ff 0%, #1747c9 100%); border-color: #1d61ff; }
   .ghost { background: #0f1520; }
-  .footer {
-    margin-top: 20px; color: var(--muted); font-size: 0.85rem; text-align: center;
-  }
+  .footer { margin-top: 20px; color: var(--muted); font-size: .85rem; text-align: center; }
   .mono { font-family: var(--mono); }
-  .small { font-size: 0.85rem; }
+  .small { font-size: .85rem; }
+  .candidate { padding: 8px; border: 1px solid #263043; border-radius: 8px; background: #0f1520; margin-top: 6px; }
+  .candidate code { font-family: var(--mono); font-size: .85rem; }
 </style>
 </head>
 <body>
   <div class="wrap">
     <h1>PDF → PECTAB Generator (ATB/BTP)</h1>
-    <p class="lead">Upload your PDF; I’ll detect the <span class="mono">data:</span> field and append it to your PECTAB template.</p>
+    <p class="lead">Upload your PDF; I’ll detect the ATB/BTP data line (no “data:” label needed) and append it to your PECTAB template.</p>
 
     <div class="grid">
       <div class="card">
@@ -85,18 +65,19 @@
         <div id="pdfStatus" class="hint">Waiting for PDF…</div>
 
         <div class="row">
-          <button id="extractBtn" class="ghost">Extract “data:” From PDF</button>
-        </div>
-
-        <div class="hint" style="margin-top:8px">
-          The extractor scans all pages for <span class="mono">data:</span> (case-insensitive), then captures the next non-empty line as your data string.
+          <button id="extractBtn" class="ghost">Auto-detect ATB/BTP Line</button>
         </div>
 
         <div class="row" style="margin-top:12px">
-          <span id="detectBadge" class="badge warn">No data detected yet</span>
+          <span id="detectBadge" class="badge warn">Nothing detected yet</span>
         </div>
 
-        <h2 style="margin-top:18px">Detect Result</h2>
+        <div id="candidatesBox" class="hint" style="margin-top:10px; display:none">
+          <div class="small" style="margin-bottom:6px">I found multiple candidates. Pick one:</div>
+          <div id="candidates"></div>
+        </div>
+
+        <h2 style="margin-top:18px">Detected Result</h2>
         <label for="dataBlock" class="small">Detected data string (editable):</label>
         <textarea id="dataBlock" placeholder="e.g. BTP010101#01HU/HAISHENGMR#0201#0323  ... #86BEIJING#$"></textarea>
 
@@ -133,28 +114,29 @@
     <div class="card" style="margin-top:16px">
       <h2>3) Extracted Raw PDF Text (debug view)</h2>
       <pre id="pdfText">— none yet —</pre>
-      <div class="hint">This is just for visibility; extraction logic is based on the <span class="mono">data:</span> marker and next non-empty line.</div>
+      <div class="hint">Detector looks for strings beginning with <span class="mono">ATB</span> or <span class="mono">BTP</span> + 6 digits, containing many <span class="mono">#</span> segments, and (ideally) ending with <span class="mono">$</span>.</div>
     </div>
 
     <div class="footer">
-      Need tweaks (e.g., different marker rules, multi-line data blocks, or embedding data inside specific field IDs)? Tell me and I’ll adjust the parser.
+      Want me to insert the data at a placeholder (e.g. <span class="mono">{{DATA}}</span>) instead of appending? I can adjust easily.
     </div>
   </div>
 
 <script>
-  // PDF.js worker (same version as the core script)
+  // PDF.js worker
   if (window['pdfjsLib']) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.worker.min.js';
   }
 
   const $ = sel => document.querySelector(sel);
-  const $$ = sel => Array.from(document.querySelectorAll(sel));
 
   const els = {
     file: $('#pdfFile'),
     status: $('#pdfStatus'),
     extract: $('#extractBtn'),
     detectBadge: $('#detectBadge'),
+    candidatesBox: $('#candidatesBox'),
+    candidates: $('#candidates'),
     dataBlock: $('#dataBlock'),
     ensureDollar: $('#ensureDollar'),
     ensureOneDollar: $('#ensureOneDollar'),
@@ -173,32 +155,13 @@
   }
 
   function cleanText(s) {
-    return (s || '').replace(/\u00A0/g, ' ').replace(/\s+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+    return (s || '')
+      .replace(/\u00A0/g, ' ')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n');
   }
 
-  function extractDataStringFromText(txt) {
-    // Find the "data:" anchor (case-insensitive), capture the next non-empty line
-    const lines = txt.split(/\r?\n/);
-    let idx = lines.findIndex(l => /\bdata\s*:/i.test(l));
-    if (idx === -1) return { data: '', reason: 'No "data:" label found' };
-
-    // Look ahead for the first non-empty line
-    let dataLine = '';
-    for (let i = idx + 1; i < lines.length; i++) {
-      const candidate = lines[i].trim();
-      if (candidate.length > 0) {
-        dataLine = candidate;
-        break;
-      }
-    }
-    if (!dataLine) return { data: '', reason: 'No non-empty line after "data:"' };
-
-    // Normalize spaces inside data string (but keep everything else intact)
-    dataLine = dataLine.replace(/\s{2,}/g, ' ').trim();
-
-    return { data: dataLine, reason: '' };
-  }
-
+  // Read entire PDF text (page by page) using PDF.js
   async function readPdfTextFromFile(file) {
     els.status.textContent = 'Reading PDF…';
     const buf = await file.arrayBuffer();
@@ -209,10 +172,85 @@
       const page = await pdf.getPage(p);
       const content = await page.getTextContent();
       const text = content.items.map(i => i.str).join(' ');
-      // Insert page separators for readability
       full += `\n\n===== PAGE ${p}/${pdf.numPages} =====\n` + text;
     }
     return cleanText(full);
+  }
+
+  // Heuristics: extract ATB/BTP data candidates without needing a "data:" label
+  function extractCandidates(txt) {
+    const lines = txt.split(/\r?\n/);
+    const candidates = [];
+
+    function scoreCandidate(s) {
+      const hashCount = (s.match(/#/g) || []).length;
+      const hasDollar = /\$/.test(s);
+      const length = s.length;
+      // Prefer many fields, presence of $, and reasonable length
+      return hashCount * 5 + (hasDollar ? 10 : 0) + Math.min(length, 800) / 80;
+    }
+
+    function normalize(s) {
+      return s.replace(/\s{2,}/g, ' ').trim();
+    }
+
+    // Pass 1: line-based scan; if wrap occurs, join up to next 2 lines
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i].trim();
+      if (/(?:^|\s)(ATB|BTP)\d{6}/.test(l)) {
+        let chunk = l;
+        // If no '$' yet, try to glue next lines (PDF wraps)
+        let j = i + 1;
+        while (!/\$/.test(chunk) && j < Math.min(i + 3, lines.length)) {
+          const nxt = lines[j].trim();
+          if (nxt) chunk += ' ' + nxt;
+          j++;
+        }
+        chunk = normalize(chunk);
+        // Keep candidates that have at least a few fields (#…)
+        if ((chunk.match(/#/g) || []).length >= 4) {
+          candidates.push({ text: chunk, score: scoreCandidate(chunk), why: 'line-join' });
+        }
+      }
+    }
+
+    // Pass 2: global regex over normalized text (collapsed spaces)
+    const flat = normalize(txt.replace(/\s+/g, ' '));
+    // Capture from ATB/BTP + 6 digits up to the next '$' (cap length to avoid runaway)
+    const re = /(?:^|\s)((?:ATB|BTP)\d{6}[^$]{0,2000}\$)/g;
+    let m;
+    while ((m = re.exec(flat)) !== null) {
+      const cand = normalize(m[1]);
+      if ((cand.match(/#/g) || []).length >= 4) {
+        candidates.push({ text: cand, score: scoreCandidate(cand), why: 'global-$' });
+      }
+    }
+
+    // If still none, try a looser “no-$ yet” window after ATB/BTP (take ~1000 chars)
+    if (candidates.length === 0) {
+      const re2 = /(?:^|\s)((?:ATB|BTP)\d{6}[^]{0,1000})/g;
+      while ((m = re2.exec(flat)) !== null) {
+        let cand = normalize(m[1]);
+        // Truncate at first '  ' double-space boundary after many # or at next page marker
+        const dbl = cand.indexOf('  ');
+        if (dbl > 0 && dbl > 60) cand = cand.slice(0, dbl);
+        if ((cand.match(/#/g) || []).length >= 6) {
+          candidates.push({ text: cand, score: scoreCandidate(cand), why: 'global-loose' });
+        }
+      }
+    }
+
+    // Deduplicate by text
+    const dedup = [];
+    const seen = new Set();
+    for (const c of candidates) {
+      const key = c.text;
+      if (!seen.has(key)) { seen.add(key); dedup.push(c); }
+    }
+
+    // Sort by score descending
+    dedup.sort((a, b) => b.score - a.score);
+    return dedup;
   }
 
   function ensureEndsWithDollar(s) {
@@ -222,8 +260,36 @@
   }
 
   function preventDoubleDollar(merged) {
-    // Replace any occurrence of "$\n$" or "$$" at the join boundary
     return merged.replace(/\$\s*\$/g, '$');
+  }
+
+  function renderCandidates(cands) {
+    const box = els.candidates;
+    box.innerHTML = '';
+    cands.forEach((c, idx) => {
+      const id = 'cand_' + idx;
+      const div = document.createElement('div');
+      div.className = 'candidate';
+      div.innerHTML = `
+        <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer">
+          <input type="radio" name="cand" id="${id}" value="${idx}" ${idx===0?'checked':''} />
+          <div>
+            <div class="small" style="margin-bottom:6px"><strong>Candidate ${idx+1}</strong> <span class="hint">(${c.why}, score ${c.score.toFixed(1)})</span></div>
+            <code>${c.text.replace(/</g,'&lt;')}</code>
+          </div>
+        </label>`;
+      box.appendChild(div);
+    });
+    els.candidatesBox.style.display = cands.length > 1 ? 'block' : 'none';
+
+    // Update textarea when selection changes
+    box.addEventListener('change', () => {
+      const sel = [...box.querySelectorAll('input[name="cand"]')].find(r => r.checked);
+      if (sel) els.dataBlock.value = cands[Number(sel.value)].text;
+    }, { once: true });
+
+    // Seed textarea
+    if (cands[0]) els.dataBlock.value = cands[0].text;
   }
 
   // EVENT: Extract data from uploaded PDF
@@ -239,15 +305,17 @@
       const txt = await readPdfTextFromFile(f);
       els.pdfText.textContent = txt || '— empty —';
 
-      const { data, reason } = extractDataStringFromText(txt);
-      if (data) {
-        els.dataBlock.value = data;
-        els.status.textContent = 'Data detected.';
-        setBadge('ok', 'Data detected');
+      const cands = extractCandidates(txt);
+
+      if (cands.length > 0) {
+        renderCandidates(cands);
+        els.status.textContent = cands.length === 1 ? '1 candidate found.' : `${cands.length} candidates found (best preselected).`;
+        setBadge('ok', 'ATB/BTP data detected');
       } else {
         els.dataBlock.value = '';
-        els.status.textContent = `Couldn’t find data string: ${reason}`;
-        setBadge('bad', 'Data not found');
+        els.candidatesBox.style.display = 'none';
+        els.status.textContent = 'Could not detect ATB/BTP line. You can paste it manually.';
+        setBadge('bad', 'Not found');
       }
     } catch (err) {
       console.error(err);
@@ -269,17 +337,14 @@
       if (!confirm('No data string detected. Continue with template only?')) return;
     }
 
-    if (els.ensureDollar.checked) {
+    if (els.ensureDollar.checked && data) {
       data = ensureEndsWithDollar(data);
     }
 
-    let merged;
-    // Append as newline + data (keeps your template intact)
+    let merged = tpl;
     if (data) {
       merged = tpl + '\n' + data;
       if (els.ensureOneDollar.checked) merged = preventDoubleDollar(merged);
-    } else {
-      merged = tpl;
     }
 
     els.final.value = merged;
@@ -289,8 +354,6 @@
   function copyToClipboard(el, label = 'Text') {
     el.select();
     document.execCommand('copy');
-    const old = el.value;
-    // Minimal toast:
     const prev = document.title;
     document.title = `${label} copied`;
     setTimeout(() => (document.title = prev), 600);
