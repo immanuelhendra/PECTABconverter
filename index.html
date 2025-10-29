@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>PDF minimal text+barcode extractor</title>
+<title>PDF text + barcode extractor (robust loader)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; margin: 0; background:#0b1220; color:#e6edf3}
@@ -27,7 +27,7 @@
       <input id="scale" type="number" value="2.0" step="0.1" min="0.5" max="5" />
     </div>
     <div class="row">
-      <button id="render">Render</button>
+      <button id="render" disabled>Render</button>
       <button id="detect">Detect</button>
     </div>
     <div class="row"><pre id="log">log…</pre></div>
@@ -56,22 +56,54 @@
 const $ = s => document.querySelector(s);
 const log = (...a)=>{ const el=$("#log"); el.textContent += "\n• "+a.join(" "); console.log(...a) };
 
-const state = { pdf:null, page:null, viewport:null };
+const state = { pdf:null, page:null, viewport:null, loading:false };
 const canvas = $("#c"), ctx = canvas.getContext("2d");
 
-$("#file").addEventListener("change", async e=>{
-  try{
-    const f = e.target.files[0]; if(!f) return;
-    const buf = await f.arrayBuffer();
-    state.pdf = await pdfjsLib.getDocument({data:buf}).promise;
+// -------- Robust loader: arrayBuffer -> Blob URL fallback
+async function loadSelectedFile() {
+  if (state.loading) return;
+  const inp = $("#file");
+  const file = inp && inp.files && inp.files[0];
+  if (!file) { log("No file selected"); return; }
+  state.loading = true;
+  $("#render").disabled = true;
+
+  try {
+    let pdfPromise;
+    try {
+      const buf = await file.arrayBuffer();                    // primary path
+      pdfPromise = pdfjsLib.getDocument({ data: buf });
+    } catch (e) {
+      const blobUrl = URL.createObjectURL(file);               // fallback path
+      pdfPromise = pdfjsLib.getDocument({
+        url: blobUrl,
+        useWorkerFetch: false,
+        isEvalSupported: true,
+      });
+    }
+    state.pdf = await pdfPromise.promise;
     $("#page").max = state.pdf.numPages;
     $("#page").value = 1;
-    log(`Loaded ${f.name}, pages=${state.pdf.numPages}`);
-  }catch(err){ log("PDF load error:", err.message) }
-});
+    log(`Loaded ${file.name}, pages=${state.pdf.numPages}`);
+  } catch (err) {
+    log("PDF load error:", err.message);
+    console.error(err);
+    state.pdf = null;
+  } finally {
+    state.loading = false;
+    $("#render").disabled = !state.pdf;
+  }
+}
 
+$("#file").addEventListener("change", loadSelectedFile);
+$("#file").addEventListener("input", loadSelectedFile);
+
+// -------- Render (waits for load if needed)
 $("#render").addEventListener("click", async ()=>{
-  if(!state.pdf){ log("No PDF loaded"); return }
+  if(!state.pdf){
+    await loadSelectedFile();
+    if(!state.pdf){ log("Render aborted: still no PDF loaded"); return; }
+  }
   try{
     const n = +$("#page").value || 1;
     const s = +$("#scale").value || 2.0;
@@ -83,6 +115,7 @@ $("#render").addEventListener("click", async ()=>{
   }catch(err){ log("Render error:", err.message) }
 });
 
+// -------- Detect text + barcode
 $("#detect").addEventListener("click", async ()=>{
   $("#text").textContent = "";
   $("#barcode").textContent = "";
@@ -103,7 +136,7 @@ async function detectText(){
       const x = tr[4];
       const yTop = tr[5] - item.height; // convert PDF bottom-left to canvas top-left
       const w = item.width, h = item.height;
-      const text = item.str.trim();
+      const text = (item.str||"").trim();
       if(!text) continue;
       rows.push({text, x:Math.round(x), y:Math.round(yTop), w:Math.round(w), h:Math.round(h)});
     }
@@ -115,6 +148,7 @@ async function detectText(){
 
 async function detectBarcode(){
   try{
+    if(!canvas.width||!canvas.height){ log("Barcode: empty canvas"); return }
     const img = ctx.getImageData(0,0,canvas.width,canvas.height);
     const lumin = new ZXing.RGBLuminanceSource(img.data, canvas.width, canvas.height);
     let bin = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lumin));
@@ -175,7 +209,6 @@ async function detectBarcode(){
 
 function drawOverlay(final=false){
   if(!state.page) return;
-  // re-draw page snapshot is already on canvas; overlay rectangles:
   ctx.save();
   if(state.textRects){
     ctx.strokeStyle = final ? "#60a5fa" : "#224";
